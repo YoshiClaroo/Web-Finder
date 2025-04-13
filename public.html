@@ -4,19 +4,64 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🔎 WebFinder | Explorar</title>
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      background: #0F0F1A;
+      color: white;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #1A1A2E;
+      width: 100%;
+      max-width: 600px;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+    }
+    h1 {
+      background: linear-gradient(90deg, #00F5FF, #FF00E6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 20px;
+      text-align: center;
+      font-size: 2.5rem;
+    }
+    .site-card {
+      background: rgba(0, 245, 255, 0.1);
+      border-left: 3px solid #FF00E6;
+      margin: 15px 0;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .site-card a {
+      color: #00F5FF;
+      text-decoration: none;
+      font-weight: bold;
+      display: inline-block;
+      margin-top: 10px;
+    }
+    .site-card a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
-<body class="public-page">
+<body>
   <div class="container">
-    <h1>🔎 <span>Sitios publicados</span></h1>
+    <h1>🔎 Sitios publicados</h1>
     <div id="sites-container"></div>
   </div>
 
-  <script src="firebase.js"></script>
-  <script>
+  <script src="firebase.js" type="module"></script>
+  <script type="module">
     import { db, collection, getDocs } from './firebase.js';
 
-    // Mostrar sitios
     async function loadSites() {
       const querySnapshot = await getDocs(collection(db, 'publishedSites'));
       const container = document.getElementById('sites-container');
@@ -26,7 +71,8 @@
         container.innerHTML += `
           <div class="site-card">
             <h3>${site.title}</h3>
-            <a href="viewer.html?siteId=${doc.id}" target="_blank">🌐 Visitar (ganar 20 pts)</a>
+            <p>Publicado el: ${new Date(site.timestamp?.seconds * 1000).toLocaleDateString()}</p>
+            <a href="viewer.html?siteId=${doc.id}" target="_blank">🌐 Visitar sitio (ganar 20 pts)</a>
           </div>
         `;
       });
