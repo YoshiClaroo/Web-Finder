@@ -64,12 +64,18 @@
       margin-bottom: 1rem;
       color: #aaa;
     }
+    #site-title {
+      color: #0ff;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>⏳ Redireccionando...</h2>
-    <div id="site-info"></div>
+    <div id="site-info">
+      <p>Estás viendo: <span id="site-title">Cargando...</span></p>
+    </div>
     <div id="countdown">30</div>
     <div class="progress-bar">
       <div class="progress" id="progress-bar"></div>
@@ -84,13 +90,27 @@
     const siteId = new URLSearchParams(window.location.search).get('siteId');
     const user = auth.currentUser;
     const statusEl = document.getElementById('status-message');
-    const siteInfoEl = document.getElementById('site-info');
+    const siteTitleEl = document.getElementById('site-title');
 
     if (!siteId) {
-      statusEl.textContent = "⚠️ URL inválida";
+      statusEl.textContent = "Error: No se especificó sitio";
       statusEl.classList.add('error');
+      document.getElementById('countdown').style.display = "none";
+      document.getElementById('progress-bar').style.display = "none";
       return;
     }
+
+    // Cargar información del sitio
+    getDoc(doc(db, 'publishedSites', siteId)).then(siteDoc => {
+      if (!siteDoc.exists()) {
+        throw new Error("El sitio no existe");
+      }
+      const siteData = siteDoc.data();
+      siteTitleEl.textContent = siteData.title || "Sin título";
+    }).catch(error => {
+      statusEl.textContent = `Error: ${error.message}`;
+      statusEl.classList.add('error');
+    });
 
     let seconds = 30;
     let timerActive = true;
@@ -150,13 +170,6 @@
         }
       }
     }, 1000);
-
-    // Mostrar info del sitio
-    getDoc(doc(db, 'publishedSites', siteId)).then(doc => {
-      if (doc.exists()) {
-        siteInfoEl.textContent = `Viendo: ${doc.data().title}`;
-      }
-    });
 
     // Detectar si el usuario cierra la pestaña
     window.addEventListener('beforeunload', () => {
