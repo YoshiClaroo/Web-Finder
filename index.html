@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌍 WebFinder | Home</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="home-page">
+  <div class="container">
+    <header>
+      <h1>🌍 <span>WebFinder</span></h1>
+      <p>Gana puntos descubriendo sitios web</p>
+    </header>
+
+    <div class="points-card">
+      <p>Tus puntos:</p>
+      <div id="points">0</div>
+      <small>✳️ 200 pts para publicar</small>
+    </div>
+
+    <div id="publish-form" class="publish-form">
+      <h3>📤 Publicar sitio web</h3>
+      <input type="text" id="site-title" placeholder="Título">
+      <input type="url" id="site-url" placeholder="https://...">
+      <button onclick="publishSite()">Publicar</button>
+    </div>
+
+    <a href="public.html" target="_blank" class="button">🔍 Explorar sitios</a>
+    <button id="logout-btn">👋 Cerrar sesión</button>
+  </div>
+
+  <script src="firebase.js"></script>
+  <script>
+    import { auth, db, doc, setDoc, getDoc, signOut } from './firebase.js';
+
+    // Mostrar formulario si tiene +200 pts
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const points = userDoc.data()?.points || 0;
+        document.getElementById('points').textContent = points;
+
+        if (points >= 200) {
+          document.getElementById('publish-form').style.display = 'block';
+        }
+      }
+    });
+
+    // Publicar sitio
+    window.publishSite = async () => {
+      const user = auth.currentUser;
+      if (!user) return alert('⚠️ Debes iniciar sesión');
+
+      const title = document.getElementById('site-title').value;
+      const url = document.getElementById('site-url').value;
+
+      if (!title || !url) return alert('❌ Completa todos los campos');
+
+      try {
+        const siteId = Math.random().toString(36).substring(2, 9);
+        await setDoc(doc(db, 'publishedSites', siteId), {
+          title,
+          url,
+          owner: user.uid,
+          timestamp: new Date()
+        });
+        alert(`✅ ¡Sitio publicado! ID: ${siteId}`);
+      } catch (error) {
+        alert(`🔥 Error: ${error.message}`);
+      }
+    };
+
+    // Cerrar sesión
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      signOut(auth).then(() => window.location.href = 'login.html');
+    });
+  </script>
+</body>
+</html>

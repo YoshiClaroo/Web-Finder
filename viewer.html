@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⏳ WebFinder | Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="viewer-page">
+  <div class="viewer-container">
+    <h2>⏳ Redireccionando...</h2>
+    <div id="countdown">30</div>
+    <p>No cierres esta pestaña.</p>
+  </div>
+
+  <script src="firebase.js"></script>
+  <script>
+    import { auth, db, doc, getDoc, updateDoc, increment } from './firebase.js';
+
+    const siteId = new URLSearchParams(window.location.search).get('siteId');
+
+    if (siteId) {
+      let seconds = 30;
+      const timer = setInterval(async () => {
+        document.getElementById('countdown').textContent = seconds;
+        seconds--;
+
+        if (seconds < 0) {
+          clearInterval(timer);
+          const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+          if (siteDoc.exists()) {
+            if (auth.currentUser) {
+              await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+                points: increment(20)
+              });
+            }
+            window.location.href = siteDoc.data().url;
+          }
+        }
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

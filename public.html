@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔎 WebFinder | Explorar</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="public-page">
+  <div class="container">
+    <h1>🔎 <span>Sitios publicados</span></h1>
+    <div id="sites-container"></div>
+  </div>
+
+  <script src="firebase.js"></script>
+  <script>
+    import { db, collection, getDocs } from './firebase.js';
+
+    // Mostrar sitios
+    async function loadSites() {
+      const querySnapshot = await getDocs(collection(db, 'publishedSites'));
+      const container = document.getElementById('sites-container');
+
+      querySnapshot.forEach((doc) => {
+        const site = doc.data();
+        container.innerHTML += `
+          <div class="site-card">
+            <h3>${site.title}</h3>
+            <a href="viewer.html?siteId=${doc.id}" target="_blank">🌐 Visitar (ganar 20 pts)</a>
+          </div>
+        `;
+      });
+    }
+
+    loadSites();
+  </script>
+</body>
+</html>

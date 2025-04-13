@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔐 WebFinder | Login</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <h1>🌐 <span>WebFinder</span></h1>
+    <p>Descubre y comparte sitios web</p>
+
+    <form id="login-form">
+      <input type="email" placeholder="📧 Correo" required>
+      <input type="password" placeholder="🔒 Contraseña" required>
+      <button type="submit">Iniciar sesión</button>
+    </form>
+
+    <button id="register-btn">✨ Regístrate</button>
+    <p id="error-message"></p>
+  </div>
+
+  <script src="firebase.js"></script>
+  <script>
+    import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from './firebase.js';
+
+    // Registro
+    document.getElementById('register-btn').addEventListener('click', async () => {
+      const email = prompt('📧 Ingresa tu correo:');
+      const password = prompt('🔒 Crea una contraseña:');
+
+      if (email && password) {
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+          alert('🎉 ¡Cuenta creada! Inicia sesión.');
+        } catch (error) {
+          document.getElementById('error-message').textContent = `⚠️ ${error.message}`;
+        }
+      }
+    });
+
+    // Login
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = e.target[0].value;
+      const password = e.target[1].value;
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        window.location.href = 'index.html';
+      } catch (error) {
+        document.getElementById('error-message').textContent = `⚠️ ${error.message}`;
+      }
+    });
+  </script>
+</body>
+</html>

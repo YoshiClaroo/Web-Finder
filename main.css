@@ -1,0 +1,88 @@
+/* Estilos base */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #FFFFFF;
+}
+
+.auth-page {
+  background: #0F0F1A;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.home-page, .public-page {
+  background: #0F0F1A;
+  padding: 20px;
+}
+
+/* Contenedores */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.auth-container {
+  background: #1A1A2E;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+}
+
+/* Tarjetas */
+.points-card, .site-card, .publish-form {
+  background: #1A1A2E;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: 0 0 15px rgba(255, 0, 230, 0.1);
+}
+
+/* Botones */
+button, .button {
+  background: linear-gradient(45deg, #00F5FF, #FF00E6);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 50px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+button:hover, .button:hover {
+  transform: scale(1.05);
+}
+
+/* Inputs */
+input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #00F5FF;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  width: 100%;
+  margin: 8px 0;
+}
+
+/* Contador */
+#countdown {
+  font-size: 3rem;
+  background: linear-gradient(45deg, #00F5FF, #FF00E6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: bold;
+}
+
+/* Títulos */
+h1 span {
+  background: linear-gradient(45deg, #00F5FF, #FF00E6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
