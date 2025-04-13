@@ -98,14 +98,6 @@
       margin-top: 10px;
       display: none;
     }
-    .loading {
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.6; }
-      100% { opacity: 1; }
-    }
   </style>
 </head>
 <body>
@@ -151,12 +143,11 @@
       query, 
       where, 
       getDocs,
-      serverTimestamp,
-      limit
+      serverTimestamp
     } from './firebase.js';
 
-    // Control de autenticación y carga de puntos
-    onAuthStateChanged(auth, async (user) => {
+    // Control de autenticación
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         window.location.href = "login.html";
         return;
@@ -183,7 +174,6 @@
         const url = document.getElementById('site-url').value.trim();
         
         if (!title || !url) throw new Error("Completa todos los campos");
-        if (!url.startsWith('http')) throw new Error("La URL debe comenzar con http:// o https://");
         
         const userDoc = await getDoc(doc(db, "users", user.uid));
         const userPoints = userDoc.data()?.points || 0;
@@ -208,8 +198,6 @@
         ]);
 
         alert("✅ Sitio publicado correctamente");
-        document.getElementById('site-title').value = '';
-        document.getElementById('site-url').value = '';
         window.location.reload();
       } catch (error) {
         errorEl.textContent = error.message;
@@ -217,70 +205,26 @@
       }
     };
 
-    // Botón Ganar Puntos - Versión mejorada
+    // Botón Ganar Puntos
     document.getElementById('earn-points-btn').addEventListener('click', async () => {
-      const earnBtn = document.getElementById('earn-points-btn');
-      
       try {
         const user = auth.currentUser;
-        if (!user) {
-          window.location.href = "login.html";
-          return;
-        }
+        if (!user) throw new Error("Debes iniciar sesión");
 
-        // Mostrar estado de carga
-        earnBtn.disabled = true;
-        earnBtn.classList.add('loading');
-        earnBtn.textContent = "Buscando sitios...";
-
-        // Consultar sitios disponibles
         const q = query(
-          collection(db, "publishedSites"),
+          collection(db, "publishedSites"), 
           where("active", "==", true),
-          where("owner", "!=", user.uid),
-          where("url", ">", ""),
-          limit(20)
+          where("owner", "!=", user.uid)
         );
         
         const snapshot = await getDocs(q);
+        if (snapshot.empty) throw new Error("No hay sitios disponibles");
         
-        if (snapshot.empty) {
-          alert("No hay sitios disponibles para visitar. ¡Publica más sitios para ganar puntos!");
-          return;
-        }
-
-        // Seleccionar sitio aleatorio
         const sites = snapshot.docs;
-        const randomIndex = Math.floor(Math.random() * sites.length);
-        const randomSite = sites[randomIndex].data();
-
-        // Mostrar confirmación
-        if (confirm(`¿Visitar "${randomSite.title || 'este sitio'}"?\n\nGanarás 5 puntos.`)) {
-          // Actualizar puntos y estadísticas
-          await Promise.all([
-            updateDoc(doc(db, "users", user.uid), {
-              points: increment(5),
-              lastVisit: serverTimestamp()
-            }),
-            updateDoc(doc(db, "publishedSites", sites[randomIndex].id), {
-              views: increment(1),
-              lastVisited: serverTimestamp()
-            })
-          ]);
-
-          // Redirección segura
-          window.open(randomSite.url, '_blank', 'noopener,noreferrer');
-        }
-
+        const randomSite = sites[Math.floor(Math.random() * sites.length)];
+        window.location.href = `viewer.html?siteId=${randomSite.id}`;
       } catch (error) {
-        console.error("Error al ganar puntos:", error);
-        alert("Ocurrió un error. Intenta nuevamente.");
-      } finally {
-        // Restaurar botón
-        const earnBtn = document.getElementById('earn-points-btn');
-        earnBtn.textContent = "💰 Ganar Puntos";
-        earnBtn.disabled = false;
-        earnBtn.classList.remove('loading');
+        alert(error.message);
       }
     });
 
