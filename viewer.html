@@ -1,56 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⏳ WebFinder | Visor</title>
-  <style>
-    body {
-      background: #0F0F1A;
-      color: white;
-      font-family: 'Inter', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-    }
-    .container {
-      background: #1A1A2E;
-      width: 100%;
-      max-width: 400px;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
-    }
-    #countdown {
-      font-size: 4rem;
-      background: linear-gradient(45deg, #00F5FF, #FF00E6);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      margin: 20px 0;
-    }
-    h2 {
-      color: #00F5FF;
-    }
-    .progress-bar {
-      width: 100%;
-      height: 10px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 5px;
-      margin: 20px 0;
-      overflow: hidden;
-    }
-    .progress {
-      height: 100%;
-      background: linear-gradient(90deg, #00F5FF, #FF00E6);
-      width: 0%;
-      transition: width 1s linear;
-    }
-  </style>
+  <!-- Estilos anteriores... -->
 </head>
 <body>
   <div class="container">
@@ -59,7 +10,7 @@
     <div class="progress-bar">
       <div class="progress" id="progress-bar"></div>
     </div>
-    <p>No cierres esta pestaña para ganar puntos</p>
+    <p id="status-message">No cierres esta pestaña para ganar puntos</p>
   </div>
 
   <script src="firebase.js" type="module"></script>
@@ -67,16 +18,63 @@
     import { auth, db, doc, getDoc, updateDoc, increment } from './firebase.js';
 
     const siteId = new URLSearchParams(window.location.search).get('siteId');
-    const progressBar = document.getElementById('progress-bar');
+    const user = auth.currentUser;
 
     if (siteId) {
       let seconds = 30;
       const timer = setInterval(async () => {
         document.getElementById('countdown').textContent = seconds;
-        progressBar.style.width = `${(30 - seconds) * (100 / 30)}%`;
+        document.getElementById('progress-bar').style.width = `${(30 - seconds) * (100 / 30)}%`;
         seconds--;
 
         if (seconds < 0) {
           clearInterval(timer);
           const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+          
           if (siteDoc.exists()) {
+            const siteData = siteDoc.data();
+            
+            // Verificar si el sitio está activo
+            if (!siteData.active) {
+              document.getElementById('status-message').textContent = "⚠️ Este sitio está desactivado por falta de puntos";
+              return;
+            }
+
+            // Actualizar visitas del sitio
+            await updateDoc(doc(db, 'publishedSites', siteId), {
+              views: increment(1)
+            });
+
+            // Dar puntos al visitante
+            if (user) {
+              await updateDoc(doc(db, 'users', user.uid), {
+                points: increment(5)
+              });
+            }
+
+            // Descontar puntos al dueño (si tiene)
+            const ownerDoc = await getDoc(doc(db, 'users', siteData.owner));
+            const ownerPoints = ownerDoc.data()?.points || 0;
+            
+            if (ownerPoints >= 5) {
+              await updateDoc(doc(db, 'users', siteData.owner), {
+                points: increment(-5)
+              });
+            } else {
+              // Desactivar sitio si no tiene puntos
+              await updateDoc(doc(db, 'publishedSites', siteId), {
+                active: false
+              });
+            }
+
+            window.location.href = siteData.url;
+          }
+        }
+      }, 1000);
+    } else {
+      alert("ID de sitio no válido");
+      window.location.href = "public.html";
+    }
+  </script>
+</body>
+</html>
