@@ -16,7 +16,6 @@ import {
   getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// Configuración de tu proyecto Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDrvltDfr_3ioGeU63I_XnO-915yx7LiB0",
   authDomain: "web-finder-7dbd5.firebaseapp.com",
@@ -27,14 +26,10 @@ const firebaseConfig = {
   measurementId: "G-NVHD1F5RS6"
 };
 
-// Inicializar Firebase
 const app = initializeApp(firebaseConfig);
-
-// Obtener servicios de Firebase
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Exportar solo lo necesario
 export {
   auth,
   db,
