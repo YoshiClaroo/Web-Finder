@@ -1,7 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <!-- Estilos anteriores... -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⏳ WebFinder | Visor</title>
+  <style>
+    /* TUS ESTILOS ACTUALES (sin cambios) */
+    #status-message {
+      color: #00F5FF;
+      margin-top: 20px;
+    }
+    .error-message {
+      color: #FF5555;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -31,33 +43,36 @@
           clearInterval(timer);
           const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
           
-          if (siteDoc.exists()) {
-            const siteData = siteDoc.data();
-            
-            // Verificar si el sitio está activo
-            if (!siteData.active) {
-              document.getElementById('status-message').textContent = "⚠️ Este sitio está desactivado por falta de puntos";
-              return;
-            }
+          if (!siteDoc.exists()) {
+            document.getElementById('status-message').className = 'error-message';
+            document.getElementById('status-message').textContent = "⚠️ Este sitio ya no existe";
+            return;
+          }
 
-            // Actualizar visitas del sitio
-            await updateDoc(doc(db, 'publishedSites', siteId), {
-              views: increment(1)
-            });
+          const siteData = siteDoc.data();
+          
+          // Verificar si el sitio está activo
+          if (!siteData.active) {
+            document.getElementById('status-message').className = 'error-message';
+            document.getElementById('status-message').textContent = "⚠️ Este sitio está desactivado (el dueño no tiene puntos)";
+            return;
+          }
 
-            // Dar puntos al visitante
+          try {
+            // 1. Dar 5 puntos al visitante
             if (user) {
               await updateDoc(doc(db, 'users', user.uid), {
                 points: increment(5)
               });
             }
 
-            // Descontar puntos al dueño (si tiene)
-            const ownerDoc = await getDoc(doc(db, 'users', siteData.owner));
+            // 2. Descontar 5 puntos al dueño (si tiene)
+            const ownerRef = doc(db, 'users', siteData.owner);
+            const ownerDoc = await getDoc(ownerRef);
             const ownerPoints = ownerDoc.data()?.points || 0;
             
             if (ownerPoints >= 5) {
-              await updateDoc(doc(db, 'users', siteData.owner), {
+              await updateDoc(ownerRef, {
                 points: increment(-5)
               });
             } else {
@@ -67,13 +82,22 @@
               });
             }
 
+            // 3. Actualizar estadísticas del sitio
+            await updateDoc(doc(db, 'publishedSites', siteId), {
+              views: increment(1)
+            });
+
+            // Redirigir al sitio
             window.location.href = siteData.url;
+          } catch (error) {
+            document.getElementById('status-message').className = 'error-message';
+            document.getElementById('status-message').textContent = `⚠️ Error: ${error.message}`;
           }
         }
       }, 1000);
     } else {
-      alert("ID de sitio no válido");
-      window.location.href = "public.html";
+      document.getElementById('status-message').className = 'error-message';
+      document.getElementById('status-message').textContent = "⚠️ URL inválida";
     }
   </script>
 </body>
