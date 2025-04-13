@@ -36,12 +36,29 @@
     h2 {
       color: #00F5FF;
     }
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      background: linear-gradient(90deg, #00F5FF, #FF00E6);
+      width: 0%;
+      transition: width 1s linear;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>⏳ Redireccionando...</h2>
     <div id="countdown">30</div>
+    <div class="progress-bar">
+      <div class="progress" id="progress-bar"></div>
+    </div>
     <p>No cierres esta pestaña para ganar puntos</p>
   </div>
 
@@ -50,30 +67,16 @@
     import { auth, db, doc, getDoc, updateDoc, increment } from './firebase.js';
 
     const siteId = new URLSearchParams(window.location.search).get('siteId');
+    const progressBar = document.getElementById('progress-bar');
 
     if (siteId) {
       let seconds = 30;
       const timer = setInterval(async () => {
         document.getElementById('countdown').textContent = seconds;
+        progressBar.style.width = `${(30 - seconds) * (100 / 30)}%`;
         seconds--;
 
         if (seconds < 0) {
           clearInterval(timer);
           const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
           if (siteDoc.exists()) {
-            if (auth.currentUser) {
-              await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-                points: increment(20)
-              });
-            }
-            window.location.href = siteDoc.data().url;
-          }
-        }
-      }, 1000);
-    } else {
-      alert("ID de sitio no válido");
-      window.location.href = "public.html";
-    }
-  </script>
-</body>
-</html>
