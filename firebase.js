@@ -3,7 +3,8 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore,
@@ -13,7 +14,10 @@ import {
   updateDoc,
   increment,
   collection,
+  query,
+  where,
   getDocs,
+  serverTimestamp,
   getCountFromServer
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -21,7 +25,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDrvltDfr_3ioGeU63I_XnO-915yx7LiB0",
   authDomain: "web-finder-7dbd5.firebaseapp.com",
   projectId: "web-finder-7dbd5",
-  storageBucket: "web-finder-7dbd5.firebasestorage.app",
+  storageBucket: "web-finder-7dbd5.appspot.com",
   messagingSenderId: "256985326029",
   appId: "1:256985326029:web:b15eeaf841a399ae1fe484",
   measurementId: "G-NVHD1F5RS6"
@@ -37,12 +41,16 @@ export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
+  onAuthStateChanged,
   doc,
   setDoc,
   getDoc,
   updateDoc,
   increment,
   collection,
+  query,
+  where,
   getDocs,
+  serverTimestamp,
   getCountFromServer
 };
