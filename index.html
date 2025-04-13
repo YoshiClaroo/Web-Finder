@@ -3,77 +3,139 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🌍 WebFinder | Home</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>🌍 WebFinder | Inicio</title>
+  <style>
+    body {
+      background: #0F0F1A;
+      color: white;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #1A1A2E;
+      width: 100%;
+      max-width: 500px;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+      text-align: center;
+    }
+    h1 {
+      background: linear-gradient(90deg, #00F5FF, #FF00E6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 20px;
+      font-size: 2.5rem;
+    }
+    .points-card {
+      background: rgba(0, 245, 255, 0.1);
+      border-left: 3px solid #00F5FF;
+      margin: 20px 0;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    #points {
+      font-size: 2.5rem;
+      background: linear-gradient(45deg, #00F5FF, #FF00E6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    button, .button {
+      background: linear-gradient(45deg, #00F5FF, #FF00E6);
+      color: black;
+      font-weight: bold;
+      border: none;
+      padding: 14px;
+      border-radius: 8px;
+      width: 100%;
+      margin: 10px 0;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 245, 255, 0.4);
+    }
+    #publish-form {
+      display: none;
+      margin: 25px 0;
+    }
+    #publish-form input {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid #00F5FF;
+      color: white;
+    }
+  </style>
 </head>
-<body class="home-page">
+<body>
   <div class="container">
-    <header>
-      <h1>🌍 <span>WebFinder</span></h1>
-      <p>Gana puntos descubriendo sitios web</p>
-    </header>
-
+    <h1>🌍 WebFinder</h1>
+    
     <div class="points-card">
       <p>Tus puntos:</p>
       <div id="points">0</div>
-      <small>✳️ 200 pts para publicar</small>
+      <small>Gana 20 pts por cada visita</small>
     </div>
 
-    <div id="publish-form" class="publish-form">
-      <h3>📤 Publicar sitio web</h3>
+    <div id="publish-form">
+      <h3>📤 Publicar sitio</h3>
       <input type="text" id="site-title" placeholder="Título">
       <input type="url" id="site-url" placeholder="https://...">
       <button onclick="publishSite()">Publicar</button>
     </div>
 
-    <a href="public.html" target="_blank" class="button">🔍 Explorar sitios</a>
+    <a href="public.html" class="button">🔍 Explorar sitios</a>
     <button id="logout-btn">👋 Cerrar sesión</button>
   </div>
 
-  <script src="firebase.js"></script>
-  <script>
+  <script src="firebase.js" type="module"></script>
+  <script type="module">
     import { auth, db, doc, setDoc, getDoc, signOut } from './firebase.js';
 
-    // Mostrar formulario si tiene +200 pts
     auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const points = userDoc.data()?.points || 0;
-        document.getElementById('points').textContent = points;
-
-        if (points >= 200) {
-          document.getElementById('publish-form').style.display = 'block';
-        }
+      if (!user) window.location.href = "login.html";
+      
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      document.getElementById('points').textContent = userDoc.data()?.points || 0;
+      
+      if (userDoc.data()?.points >= 200) {
+        document.getElementById('publish-form').style.display = 'block';
       }
     });
 
-    // Publicar sitio
     window.publishSite = async () => {
       const user = auth.currentUser;
-      if (!user) return alert('⚠️ Debes iniciar sesión');
-
       const title = document.getElementById('site-title').value;
       const url = document.getElementById('site-url').value;
-
-      if (!title || !url) return alert('❌ Completa todos los campos');
-
+      
+      if (!title || !url) return alert("❌ Completa todos los campos");
+      
       try {
-        const siteId = Math.random().toString(36).substring(2, 9);
-        await setDoc(doc(db, 'publishedSites', siteId), {
+        await setDoc(doc(db, "publishedSites", crypto.randomUUID()), {
           title,
           url,
           owner: user.uid,
           timestamp: new Date()
         });
-        alert(`✅ ¡Sitio publicado! ID: ${siteId}`);
+        alert("✅ Sitio publicado!");
       } catch (error) {
         alert(`🔥 Error: ${error.message}`);
       }
     };
 
-    // Cerrar sesión
     document.getElementById('logout-btn').addEventListener('click', () => {
-      signOut(auth).then(() => window.location.href = 'login.html');
+      signOut(auth).then(() => window.location.href = "login.html");
     });
   </script>
 </body>
