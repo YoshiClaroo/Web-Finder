@@ -4,11 +4,68 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🔐 WebFinder | Entrada</title>
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      background: #0F0F1A;
+      color: white;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #1A1A2E;
+      width: 100%;
+      max-width: 400px;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+      text-align: center;
+    }
+    h1 {
+      background: linear-gradient(90deg, #00F5FF, #FF00E6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 20px;
+      font-size: 2.5rem;
+    }
+    input, button {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      border-radius: 8px;
+      font-size: 1rem;
+      border: none;
+    }
+    input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid #00F5FF;
+      color: white;
+    }
+    button {
+      background: linear-gradient(45deg, #00F5FF, #FF00E6);
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 245, 255, 0.4);
+    }
+    .error {
+      color: #FF5555;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
-    <h1 class="neon-text">🌐 WebFinder</h1>
+    <h1>🌐 WebFinder</h1>
     <p>Descubre y comparte sitios web</p>
     
     <form id="login-form">
@@ -25,7 +82,6 @@
   <script type="module">
     import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from './firebase.js';
 
-    // Registro
     document.getElementById('register-btn').addEventListener('click', () => {
       const email = prompt("📧 Ingresa tu correo:");
       const password = prompt("🔒 Crea una contraseña segura:");
@@ -39,7 +95,6 @@
       }
     });
 
-    // Login
     document.getElementById('login-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const email = e.target[0].value;
