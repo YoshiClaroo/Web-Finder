@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⏳ WebFinder | Visor</title>
   <style>
+    /* Tus estilos existentes */
     body {
       background: #000;
       color: #fff;
@@ -97,73 +98,84 @@
   <script type="module">
     import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp } from './firebase.js';
 
-    // Elementos del DOM
+    // 1. Configuración inicial
+    const siteId = new URLSearchParams(window.location.search).get('siteId');
+    const user = auth.currentUser;
+    
+    // 2. Elementos del DOM
     const statusEl = document.getElementById('status-message');
     const siteTitleEl = document.getElementById('site-title');
     const countdownEl = document.getElementById('countdown');
     const progressBar = document.getElementById('progress-bar');
     const cancelBtn = document.getElementById('cancel-btn');
 
-    // Obtener ID del sitio desde la URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const siteId = urlParams.get('siteId');
-
-    // Variables de control
+    // 3. Variables de control
     let countdownTimer;
     let countdownSeconds = 30;
     let processCompleted = false;
 
-    // Función para redireccionar
-    const redirectToSite = async () => {
+    // 4. Función para formatear URL
+    const formatUrl = (url) => {
+      if (!url) return null;
+      return url.startsWith('http') ? url : `https://${url}`;
+    };
+
+    // 5. Función principal de redirección
+    const processRedirection = async () => {
       if (processCompleted) return;
       processCompleted = true;
       
-      try {
-        const user = auth.currentUser;
-        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+      clearInterval(countdownTimer);
+      countdownEl.textContent = "0";
+      progressBar.style.width = "100%";
 
-        if (!siteDoc.exists()) {
-          throw new Error("El sitio ya no existe");
-        }
+      try {
+        // Verificar usuario
+        if (!user) throw new Error("Debes iniciar sesión");
+
+        // Obtener datos del sitio
+        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+        if (!siteDoc.exists()) throw new Error("El sitio no existe");
 
         const siteData = siteDoc.data();
+        const formattedUrl = formatUrl(siteData.url);
+        if (!formattedUrl) throw new Error("URL no válida");
 
-        // Verificar si el sitio está activo
-        if (!siteData.active) {
-          throw new Error("El sitio está inactivo");
-        }
+        // Verificar estado activo
+        if (!siteData.active) throw new Error("El sitio está inactivo");
 
         // Verificar puntos del dueño
         const ownerRef = doc(db, 'users', siteData.owner);
         const ownerDoc = await getDoc(ownerRef);
         const ownerPoints = ownerDoc.data()?.points || 0;
-
+        
         if (ownerPoints < 5) {
           await updateDoc(doc(db, 'publishedSites', siteId), {
-            active: false,
-            ownerPoints: 0
+            active: false
           });
           throw new Error("El dueño no tiene puntos suficientes");
         }
 
-        // Actualizar puntos y estadísticas
+        // Actualizar estadísticas
         await Promise.all([
-          updateDoc(ownerRef, { points: increment(-5) }),
+          updateDoc(ownerRef, { 
+            points: increment(-5) 
+          }),
           updateDoc(doc(db, 'publishedSites', siteId), {
             views: increment(1),
             ownerPoints: ownerPoints - 5,
             lastVisited: serverTimestamp()
           }),
-          user && updateDoc(doc(db, 'users', user.uid), {
-            points: increment(5),
-            lastVisit: serverTimestamp()
+          updateDoc(doc(db, 'users', user.uid), {
+            points: increment(5)
           })
         ]);
 
         // Redirección final
-        window.location.href = siteData.url;
+        window.location.href = formattedUrl;
 
       } catch (error) {
+        console.error("Error en redirección:", error);
         statusEl.textContent = `⚠️ ${error.message}`;
         statusEl.classList.add('error');
         countdownEl.style.display = "none";
@@ -171,52 +183,45 @@
       }
     };
 
-    // Función para actualizar el contador
-    const updateCountdown = () => {
-      countdownSeconds--;
-      countdownEl.textContent = countdownSeconds;
-      progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
-
-      if (countdownSeconds <= 0) {
-        clearInterval(countdownTimer);
-        redirectToSite();
-      }
-    };
-
-    // Botón de cancelar
-    cancelBtn.addEventListener('click', () => {
-      clearInterval(countdownTimer);
-      window.location.href = "home.html";
-    });
-
-    // Inicialización
+    // 6. Inicialización
     if (!siteId) {
       statusEl.textContent = "Error: No se especificó sitio";
       statusEl.classList.add('error');
       countdownEl.style.display = "none";
       progressBar.style.display = "none";
-      return;
+    } else {
+      // Cargar datos del sitio
+      getDoc(doc(db, 'publishedSites', siteId))
+        .then(siteDoc => {
+          if (!siteDoc.exists()) throw new Error("Sitio no encontrado");
+          
+          const siteData = siteDoc.data();
+          siteTitleEl.textContent = siteData.title || "Sitio sin título";
+          
+          // Iniciar contador
+          countdownTimer = setInterval(() => {
+            countdownSeconds--;
+            countdownEl.textContent = countdownSeconds;
+            progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
+            
+            if (countdownSeconds <= 0) {
+              processRedirection();
+            }
+          }, 1000);
+        })
+        .catch(error => {
+          statusEl.textContent = `Error: ${error.message}`;
+          statusEl.classList.add('error');
+          countdownEl.style.display = "none";
+          progressBar.style.display = "none";
+        });
     }
 
-    // Cargar información del sitio
-    getDoc(doc(db, 'publishedSites', siteId))
-      .then(siteDoc => {
-        if (!siteDoc.exists()) {
-          throw new Error("Sitio no encontrado");
-        }
-        
-        const siteData = siteDoc.data();
-        siteTitleEl.textContent = siteData.title || "Sitio sin título";
-        
-        // Iniciar contador
-        countdownTimer = setInterval(updateCountdown, 1000);
-      })
-      .catch(error => {
-        statusEl.textContent = `Error: ${error.message}`;
-        statusEl.classList.add('error');
-        countdownEl.style.display = "none";
-        progressBar.style.display = "none";
-      });
+    // 7. Botón de cancelar
+    cancelBtn.addEventListener('click', () => {
+      clearInterval(countdownTimer);
+      window.location.href = "home.html";
+    });
   </script>
 </body>
 </html>
