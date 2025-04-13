@@ -63,11 +63,15 @@
       transform: translateY(-2px);
       box-shadow: 0 5px 15px rgba(0, 245, 255, 0.4);
     }
-    #publish-form {
-      display: none;
+    .form-container {
+      background: rgba(255, 0, 230, 0.1);
+      border-left: 3px solid #FF00E6;
+      padding: 20px;
+      border-radius: 8px;
       margin: 25px 0;
+      text-align: left;
     }
-    #publish-form input {
+    .form-container input {
       width: 100%;
       padding: 12px;
       margin: 8px 0;
@@ -88,9 +92,9 @@
       <small>Gana 20 pts por cada visita</small>
     </div>
 
-    <div id="publish-form">
-      <h3>📤 Publicar sitio</h3>
-      <input type="text" id="site-title" placeholder="Título">
+    <div id="publish-form" class="form-container" style="display: none;">
+      <h3>📤 Publicar sitio web</h3>
+      <input type="text" id="site-title" placeholder="Título del sitio">
       <input type="url" id="site-url" placeholder="https://...">
       <button onclick="publishSite()">Publicar</button>
     </div>
@@ -122,13 +126,14 @@
       if (!title || !url) return alert("❌ Completa todos los campos");
       
       try {
-        await setDoc(doc(db, "publishedSites", crypto.randomUUID()), {
+        const siteId = crypto.randomUUID();
+        await setDoc(doc(db, "publishedSites", siteId), {
           title,
           url,
           owner: user.uid,
           timestamp: new Date()
         });
-        alert("✅ Sitio publicado!");
+        alert(`✅ Sitio publicado con ID: ${siteId}`);
       } catch (error) {
         alert(`🔥 Error: ${error.message}`);
       }
