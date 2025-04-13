@@ -1,88 +1,101 @@
-/* Estilos base */
-body {
-  font-family: 'Inter', sans-serif;
-  margin: 0;
-  padding: 0;
-  color: #FFFFFF;
+:root {
+  --neon-cyan: #00F5FF;
+  --neon-pink: #FF00E6;
+  --dark-1: #0F0F1A;
+  --dark-2: #1A1A2E;
+  --text: #FFFFFF;
+  --error: #FF5555;
 }
 
-.auth-page {
-  background: #0F0F1A;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  background: var(--dark-1);
+  color: var(--text);
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-}
-
-.home-page, .public-page {
-  background: #0F0F1A;
   padding: 20px;
 }
 
-/* Contenedores */
 .container {
-  max-width: 800px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 500px;
+  background: var(--dark-2);
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 
+    0 0 15px var(--neon-cyan),
+    0 0 30px rgba(255, 0, 230, 0.1);
   text-align: center;
 }
 
-.auth-container {
-  background: #1A1A2E;
-  padding: 2rem;
-  border-radius: 12px;
-  width: 90%;
-  max-width: 400px;
-  box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+h1 {
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 20px;
+  font-size: 2.5rem;
 }
 
-/* Tarjetas */
-.points-card, .site-card, .publish-form {
-  background: #1A1A2E;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin: 1rem 0;
-  box-shadow: 0 0 15px rgba(255, 0, 230, 0.1);
-}
-
-/* Botones */
-button, .button {
-  background: linear-gradient(45deg, #00F5FF, #FF00E6);
-  color: white;
+input, button {
+  width: 100%;
+  padding: 14px;
+  margin: 10px 0;
+  border-radius: 8px;
+  font-size: 1rem;
   border: none;
-  padding: 12px 24px;
-  border-radius: 50px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: transform 0.3s;
 }
 
-button:hover, .button:hover {
-  transform: scale(1.05);
-}
-
-/* Inputs */
 input {
   background: rgba(255, 255, 255, 0.1);
-  border: 1px solid #00F5FF;
+  border: 1px solid var(--neon-cyan);
   color: white;
-  padding: 12px;
-  border-radius: 8px;
-  width: 100%;
-  margin: 8px 0;
 }
 
-/* Contador */
-#countdown {
-  font-size: 3rem;
-  background: linear-gradient(45deg, #00F5FF, #FF00E6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+button {
+  background: linear-gradient(45deg, var(--neon-cyan), var(--neon-pink));
+  color: black;
   font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
 }
 
-/* Títulos */
-h1 span {
-  background: linear-gradient(45deg, #00F5FF, #FF00E6);
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 245, 255, 0.4);
+}
+
+.error {
+  color: var(--error);
+  margin-top: 10px;
+}
+
+/* Efectos neón */
+.neon-text {
+  text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-pink);
+}
+
+.site-card {
+  background: var(--dark-2);
+  border-left: 3px solid var(--neon-cyan);
+  margin: 15px 0;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+#countdown {
+  font-size: 4rem;
+  background: linear-gradient(45deg, var(--neon-cyan), var(--neon-pink));
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  margin: 20px 0;
 }
