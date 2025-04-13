@@ -114,26 +114,43 @@
 
     // Registro corregido (mismo diseño)
     document.getElementById('register-btn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value || prompt("📧 Ingresa tu correo:");
-      const password = document.getElementById('password').value || prompt("🔒 Crea una contraseña:");
-      
-      if (!email || !password) return;
-      
-      try {
-        // 1. Crear usuario en Authentication
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        
-        // 2. Verificar si es de los primeros 100
-        const usersRef = collection(db, "users");
-        const snapshot = await getCountFromServer(usersRef);
-        const initialPoints = snapshot.data().count < 100 ? 200 : 0;
-        
-        // 3. Crear documento en Firestore
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-          email,
-          points: initialPoints,
-          createdAt: new Date()
-        });
+  const email = prompt("📧 Ingresa tu correo:");
+  const password = prompt("🔒 Crea una contraseña (6+ caracteres):");
+  
+  if (!email || !password) return;
+  
+  try {
+    // 1. Crear usuario en Authentication
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // 2. Verificar primeros 100 registros
+    const usersRef = collection(db, "users");
+    const snapshot = await getCountFromServer(usersRef);
+    const initialPoints = snapshot.data().count < 100 ? 200 : 0;
+    
+    // 3. Crear documento en Firestore CON TIMEOUT
+    setTimeout(async () => {
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        email: email,
+        points: initialPoints,
+        createdAt: new Date()
+      });
+      alert(`🎉 ¡Registro exitoso! ${initialPoints > 0 ? '+200 pts' : ''}`);
+      window.location.href = "home.html";
+    }, 1000); // Espera 1 segundo
+    
+  } catch (error) {
+    let errorMsg = "Error: ";
+    if (error.code === 'auth/email-already-in-use') {
+      errorMsg += "El correo ya está registrado";
+    } else if (error.code === 'auth/weak-password') {
+      errorMsg += "La contraseña necesita 6+ caracteres";
+    } else {
+      errorMsg += error.message;
+    }
+    document.getElementById('error-message').textContent = errorMsg;
+  }
+});
         
         alert(`🎉 ¡Cuenta creada! ${initialPoints > 0 ? '+200 pts' : ''}`);
         window.location.href = "home.html";
