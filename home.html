@@ -5,7 +5,82 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌍 WebFinder | Inicio</title>
   <style>
-    /* TUS ESTILOS ACTUALES (sin cambios) */
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #111;
+      width: 100%;
+      max-width: 500px;
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+      text-align: center;
+    }
+    h1 {
+      color: #0ff;
+      margin-bottom: 1.5rem;
+      font-size: 2.2rem;
+      text-shadow: 0 0 8px #0ff;
+    }
+    .points-card {
+      background: rgba(0, 255, 255, 0.1);
+      border-left: 3px solid #0ff;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 8px;
+    }
+    #points {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: bold;
+    }
+    .button {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin: 12px 0;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      color: black;
+      font-weight: bold;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.3s;
+    }
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 255, 255, 0.4);
+    }
+    .form-container {
+      margin: 1.5rem 0;
+      text-align: left;
+    }
+    .form-container input {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #0ff;
+      color: white;
+      border-radius: 8px;
+    }
+    .info-text {
+      color: #aaa;
+      font-size: 0.9rem;
+      margin: 5px 0;
+    }
   </style>
 </head>
 <body>
@@ -15,29 +90,24 @@
     <div class="points-card">
       <p>Tus puntos:</p>
       <div id="points">0</div>
-      <div class="points-info">
-        <small>✳️ Gana 5 pts por visitar sitios</small><br>
-        <small>✳️ Se descuentan 5 pts por cada visita a tus sitios</small><br>
-        <small>✳️ 200 pts para publicar nuevo sitio</small>
-      </div>
+      <p class="info-text">Gana 5 pts por visitar sitios</p>
+      <p class="info-text">Se descuentan 5 pts por visita a tus sitios</p>
     </div>
 
     <div id="publish-form" class="form-container" style="display: none;">
       <h3>📤 Publicar sitio web</h3>
       <input type="text" id="site-title" placeholder="Título del sitio" required>
       <input type="url" id="site-url" placeholder="https://..." required>
-      <button onclick="publishSite()">Publicar (Costó: 200 pts)</button>
+      <button onclick="publishSite()" class="button">Publicar (200 pts)</button>
     </div>
 
-    <div class="button-group">
-      <a href="public.html" class="button">🔍 Explorar sitios</a>
-      <button id="logout-btn">👋 Cerrar sesión</button>
-    </div>
+    <a href="public.html" class="button">🔍 Explorar sitios</a>
+    <button id="logout-btn" class="button">👋 Cerrar sesión</button>
   </div>
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, setDoc, getDoc, updateDoc, increment } from './firebase.js';
+    import { auth, db, doc, getDoc, setDoc, updateDoc, increment, signOut } from './firebase.js';
 
     auth.onAuthStateChanged(async (user) => {
       if (!user) window.location.href = "login.html";
@@ -55,24 +125,18 @@
       const user = auth.currentUser;
       if (!user) return alert("⚠️ Debes iniciar sesión");
 
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      const userPoints = userDoc.data()?.points || 0;
-      
-      if (userPoints < 200) {
-        return alert("❌ Necesitas 200 puntos para publicar");
-      }
-
       const title = document.getElementById('site-title').value;
       const url = document.getElementById('site-url').value;
       
       if (!title || !url) return alert("❌ Completa todos los campos");
       
       try {
-        // Descontar 200 puntos
-        await updateDoc(doc(db, "users", user.uid), {
-          points: increment(-200)
-        });
-        
+        // Verificar puntos
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.data()?.points < 200) {
+          return alert("❌ No tienes suficientes puntos");
+        }
+
         // Publicar sitio
         const siteId = crypto.randomUUID();
         await setDoc(doc(db, "publishedSites", siteId), {
@@ -83,7 +147,12 @@
           views: 0,
           timestamp: new Date()
         });
-        
+
+        // Descontar puntos
+        await updateDoc(doc(db, "users", user.uid), {
+          points: increment(-200)
+        });
+
         alert(`✅ Sitio publicado!\nID: ${siteId}`);
         window.location.reload();
       } catch (error) {
