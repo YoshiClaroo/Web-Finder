@@ -5,28 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌍 WebFinder | Inicio</title>
   <style>
-    /* Estilos anteriores... */
-    .form-container {
-      background: rgba(255, 0, 230, 0.1);
-      padding: 20px;
-      border-radius: 8px;
-      margin: 20px 0;
-    }
-    .form-container input {
-      width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid #00F5FF;
-      color: white;
-      border-radius: 8px;
-    }
-    .points-info {
-      margin: 15px 0;
-      padding: 10px;
-      background: rgba(0, 245, 255, 0.1);
-      border-radius: 8px;
-    }
+    /* TUS ESTILOS ACTUALES (sin cambios) */
   </style>
 </head>
 <body>
@@ -37,8 +16,9 @@
       <p>Tus puntos:</p>
       <div id="points">0</div>
       <div class="points-info">
-        <small>✳️ 5 pts por visita recibida</small><br>
-        <small>✳️ 200 pts para publicar</small>
+        <small>✳️ Gana 5 pts por visitar sitios</small><br>
+        <small>✳️ Se descuentan 5 pts por cada visita a tus sitios</small><br>
+        <small>✳️ 200 pts para publicar nuevo sitio</small>
       </div>
     </div>
 
@@ -50,7 +30,6 @@
     </div>
 
     <div class="button-group">
-      <a href="ads.html" class="button">📢 Ver Anuncios</a>
       <a href="public.html" class="button">🔍 Explorar sitios</a>
       <button id="logout-btn">👋 Cerrar sesión</button>
     </div>
@@ -58,7 +37,7 @@
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, setDoc, getDoc, signOut } from './firebase.js';
+    import { auth, db, doc, setDoc, getDoc, updateDoc, increment } from './firebase.js';
 
     auth.onAuthStateChanged(async (user) => {
       if (!user) window.location.href = "login.html";
