@@ -85,10 +85,9 @@
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, getDoc, updateDoc, increment } from './firebase.js';
+    import { auth, db, doc, getDoc, updateDoc, increment, onAuthStateChanged } from './firebase.js';
 
     const siteId = new URLSearchParams(window.location.search).get('siteId');
-    const user = auth.currentUser;
     const statusEl = document.getElementById('status-message');
     const siteTitleEl = document.getElementById('site-title');
 
@@ -101,79 +100,67 @@
     }
 
     // Cargar información del sitio
-    getDoc(doc(db, 'publishedSites', siteId)).then(siteDoc => {
-      if (!siteDoc.exists()) {
-        throw new Error("El sitio no existe");
-      }
-      const siteData = siteDoc.data();
-      siteTitleEl.textContent = siteData.title || "Sin título";
-    }).catch(error => {
-      statusEl.textContent = `Error: ${error.message}`;
-      statusEl.classList.add('error');
-    });
+    onAuthStateChanged(auth, async (user) => {
+      try {
+        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+        if (!siteDoc.exists()) throw new Error("El sitio no existe");
+        
+        const siteData = siteDoc.data();
+        siteTitleEl.textContent = siteData.title || "Sin título";
 
-    let seconds = 30;
-    let timerActive = true;
-    const timer = setInterval(async () => {
-      document.getElementById('countdown').textContent = seconds;
-      document.getElementById('progress-bar').style.width = `${(30 - seconds) * (100 / 30)}%`;
-      seconds--;
+        let seconds = 30;
+        let timerActive = true;
+        
+        const timer = setInterval(async () => {
+          document.getElementById('countdown').textContent = seconds;
+          document.getElementById('progress-bar').style.width = `${(30 - seconds) * (100 / 30)}%`;
+          seconds--;
 
-      if (seconds < 0) {
-        clearInterval(timer);
-        if (!timerActive) return;
+          if (seconds < 0) {
+            clearInterval(timer);
+            if (!timerActive) return;
 
-        try {
-          const [siteDoc, userDoc] = await Promise.all([
-            getDoc(doc(db, 'publishedSites', siteId)),
-            user ? getDoc(doc(db, 'users', user.uid)) : Promise.resolve(null)
-          ]);
+            // Verificar puntos del dueño
+            const ownerRef = doc(db, 'users', siteData.owner);
+            const ownerDoc = await getDoc(ownerRef);
+            const ownerPoints = ownerDoc.data()?.points || 0;
 
-          if (!siteDoc.exists()) {
-            throw new Error("Este sitio ya no existe");
+            if (ownerPoints < 5) {
+              await updateDoc(doc(db, 'publishedSites', siteId), {
+                active: false,
+                ownerPoints: 0
+              });
+              throw new Error("El dueño no tiene puntos suficientes");
+            }
+
+            // Transacción de puntos
+            await Promise.all([
+              updateDoc(ownerRef, {
+                points: increment(-5)
+              }),
+              updateDoc(doc(db, 'publishedSites', siteId), {
+                views: increment(1),
+                ownerPoints: ownerPoints - 5
+              }),
+              user ? updateDoc(doc(db, 'users', user.uid), {
+                points: increment(5)
+              }) : Promise.resolve()
+            ]);
+
+            window.location.href = siteData.url;
           }
+        }, 1000);
 
-          const siteData = siteDoc.data();
-          
-          // Verificar puntos del dueño
-          const ownerRef = doc(db, 'users', siteData.owner);
-          const ownerDoc = await getDoc(ownerRef);
-          const ownerPoints = ownerDoc.data()?.points || 0;
-
-          if (ownerPoints < 5) {
-            await updateDoc(doc(db, 'publishedSites', siteId), {
-              active: false,
-              ownerPoints: 0
-            });
-            throw new Error("El dueño no tiene puntos suficientes");
-          }
-
-          // Transacción de puntos
-          await Promise.all([
-            updateDoc(ownerRef, {
-              points: increment(-5)
-            }),
-            updateDoc(doc(db, 'publishedSites', siteId), {
-              views: increment(1),
-              ownerPoints: ownerPoints - 5
-            }),
-            user ? updateDoc(doc(db, 'users', user.uid), {
-              points: increment(5)
-            }) : Promise.resolve()
-          ]);
-
-          window.location.href = siteData.url;
-        } catch (error) {
+        // Detectar si el usuario cierra la pestaña
+        window.addEventListener('beforeunload', () => {
           timerActive = false;
-          statusEl.textContent = `⚠️ ${error.message}`;
-          statusEl.classList.add('error');
-        }
-      }
-    }, 1000);
+        });
 
-    // Detectar si el usuario cierra la pestaña
-    window.addEventListener('beforeunload', () => {
-      timerActive = false;
+      } catch (error) {
+        statusEl.textContent = `⚠️ ${error.message}`;
+        statusEl.classList.add('error');
+        document.getElementById('countdown').style.display = "none";
+      }
     });
   </script>
 </body>
