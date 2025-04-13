@@ -5,58 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🔎 WebFinder | Explorar</title>
   <style>
-    body {
-      background: #0F0F1A;
+    /* TUS ESTILOS ACTUALES (sin cambios) */
+    .inactive-tag {
+      background: #FF5555;
       color: white;
-      font-family: 'Inter', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      background: #1A1A2E;
-      width: 100%;
-      max-width: 600px;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
-    }
-    h1 {
-      background: linear-gradient(90deg, #00F5FF, #FF00E6);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      margin-bottom: 20px;
-      text-align: center;
-      font-size: 2.5rem;
-    }
-    .site-card {
-      background: rgba(0, 245, 255, 0.1);
-      border-left: 3px solid #FF00E6;
-      margin: 15px 0;
-      padding: 15px;
-      border-radius: 8px;
-    }
-    .site-card h3 {
-      margin-bottom: 10px;
-    }
-    .site-card a {
-      color: #00F5FF;
-      text-decoration: none;
-      font-weight: bold;
-      display: inline-block;
-      margin-top: 10px;
-      background: rgba(0, 0, 0, 0.3);
-      padding: 8px 15px;
-      border-radius: 20px;
-      transition: all 0.3s;
-    }
-    .site-card a:hover {
-      background: rgba(0, 245, 255, 0.2);
-      transform: translateY(-2px);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin-left: 10px;
     }
   </style>
 </head>
@@ -79,9 +35,11 @@
         const site = doc.data();
         container.innerHTML += `
           <div class="site-card">
-            <h3>${site.title}</h3>
-            <p>Publicado el: ${new Date(site.timestamp?.toMillis()).toLocaleDateString()}</p>
-            <a href="viewer.html?siteId=${doc.id}" target="_blank">🌐 Visitar (ganar 20 pts)</a>
+            <h3>${site.title} ${!site.active ? '<span class="inactive-tag">INACTIVO</span>' : ''}</h3>
+            <p>Visitas: ${site.views || 0} | Publicado por: ${site.owner.substring(0, 6)}...</p>
+            <a href="viewer.html?siteId=${doc.id}" target="_blank" ${!site.active ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>
+              🌐 Visitar sitio (ganar 5 pts)
+            </a>
           </div>
         `;
       });
