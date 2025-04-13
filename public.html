@@ -40,15 +40,23 @@
       padding: 15px;
       border-radius: 8px;
     }
+    .site-card h3 {
+      margin-bottom: 10px;
+    }
     .site-card a {
       color: #00F5FF;
       text-decoration: none;
       font-weight: bold;
       display: inline-block;
       margin-top: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 15px;
+      border-radius: 20px;
+      transition: all 0.3s;
     }
     .site-card a:hover {
-      text-decoration: underline;
+      background: rgba(0, 245, 255, 0.2);
+      transform: translateY(-2px);
     }
   </style>
 </head>
@@ -65,14 +73,15 @@
     async function loadSites() {
       const querySnapshot = await getDocs(collection(db, 'publishedSites'));
       const container = document.getElementById('sites-container');
+      container.innerHTML = '';
 
       querySnapshot.forEach((doc) => {
         const site = doc.data();
         container.innerHTML += `
           <div class="site-card">
             <h3>${site.title}</h3>
-            <p>Publicado el: ${new Date(site.timestamp?.seconds * 1000).toLocaleDateString()}</p>
-            <a href="viewer.html?siteId=${doc.id}" target="_blank">🌐 Visitar sitio (ganar 20 pts)</a>
+            <p>Publicado el: ${new Date(site.timestamp?.toMillis()).toLocaleDateString()}</p>
+            <a href="viewer.html?siteId=${doc.id}" target="_blank">🌐 Visitar (ganar 20 pts)</a>
           </div>
         `;
       });
