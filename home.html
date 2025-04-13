@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌍 WebFinder | Inicio</title>
   <style>
+    /* TUS ESTILOS ACTUALES (sin cambios) */
     body {
       background: #000;
       color: #fff;
@@ -94,11 +95,13 @@
       <p class="info-text">Se descuentan 5 pts por visita a tus sitios</p>
     </div>
 
-    <div id="publish-form" class="form-container" style="display: none;">
+    <!-- FORMULARIO DE PUBLICACIÓN (SIEMPRE VISIBLE) -->
+    <div class="form-container">
       <h3>📤 Publicar sitio web</h3>
       <input type="text" id="site-title" placeholder="Título del sitio" required>
       <input type="url" id="site-url" placeholder="https://..." required>
-      <button onclick="publishSite()" class="button">Publicar (200 pts)</button>
+      <button onclick="publishSite()" class="button">Publicar (Costó: 200 pts)</button>
+      <p id="publish-error" class="error" style="color: #f55; display: none;"></p>
     </div>
 
     <a href="public.html" class="button">🔍 Explorar sitios</a>
@@ -109,32 +112,31 @@
   <script type="module">
     import { auth, db, doc, getDoc, setDoc, updateDoc, increment, signOut } from './firebase.js';
 
+    // Cargar puntos del usuario
     auth.onAuthStateChanged(async (user) => {
       if (!user) window.location.href = "login.html";
       
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      const userPoints = userDoc.data()?.points || 0;
-      document.getElementById('points').textContent = userPoints;
-      
-      if (userPoints >= 200) {
-        document.getElementById('publish-form').style.display = 'block';
-      }
+      document.getElementById('points').textContent = userDoc.data()?.points || 0;
     });
 
+    // Publicar sitio web
     window.publishSite = async () => {
       const user = auth.currentUser;
-      if (!user) return alert("⚠️ Debes iniciar sesión");
+      if (!user) return showError("⚠️ Debes iniciar sesión");
 
       const title = document.getElementById('site-title').value;
       const url = document.getElementById('site-url').value;
       
-      if (!title || !url) return alert("❌ Completa todos los campos");
+      if (!title || !url) return showError("❌ Completa todos los campos");
       
       try {
         // Verificar puntos
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.data()?.points < 200) {
-          return alert("❌ No tienes suficientes puntos");
+        const userPoints = userDoc.data()?.points || 0;
+        
+        if (userPoints < 200) {
+          return showError(`❌ Necesitas 200 puntos (tienes ${userPoints})`);
         }
 
         // Publicar sitio
@@ -156,9 +158,16 @@
         alert(`✅ Sitio publicado!\nID: ${siteId}`);
         window.location.reload();
       } catch (error) {
-        alert(`🔥 Error: ${error.message}`);
+        showError(`🔥 Error: ${error.message}`);
       }
     };
+
+    function showError(message) {
+      const errorEl = document.getElementById('publish-error');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      setTimeout(() => errorEl.style.display = 'none', 5000);
+    }
 
     document.getElementById('logout-btn').addEventListener('click', () => {
       signOut(auth).then(() => window.location.href = "login.html");
