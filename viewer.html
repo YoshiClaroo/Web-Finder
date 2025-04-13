@@ -5,13 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⏳ WebFinder | Visor</title>
   <style>
-    /* TUS ESTILOS ACTUALES (sin cambios) */
-    #status-message {
-      color: #00F5FF;
-      margin-top: 20px;
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
     }
-    .error-message {
-      color: #FF5555;
+    .container {
+      background: #111;
+      width: 100%;
+      max-width: 400px;
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+    }
+    h2 {
+      color: #0ff;
+      margin-bottom: 1.5rem;
+    }
+    #countdown {
+      font-size: 3.5rem;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      margin: 1.5rem 0;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      background: linear-gradient(90deg, #0ff, #f0f);
+      width: 0%;
+      transition: width 1s linear;
+    }
+    #status-message {
+      margin-top: 1rem;
+      color: #0ff;
+    }
+    .error {
+      color: #f55 !important;
     }
   </style>
 </head>
@@ -31,6 +78,7 @@
 
     const siteId = new URLSearchParams(window.location.search).get('siteId');
     const user = auth.currentUser;
+    const statusEl = document.getElementById('status-message');
 
     if (siteId) {
       let seconds = 30;
@@ -41,32 +89,32 @@
 
         if (seconds < 0) {
           clearInterval(timer);
-          const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
-          
-          if (!siteDoc.exists()) {
-            document.getElementById('status-message').className = 'error-message';
-            document.getElementById('status-message').textContent = "⚠️ Este sitio ya no existe";
-            return;
-          }
-
-          const siteData = siteDoc.data();
-          
-          // Verificar si el sitio está activo
-          if (!siteData.active) {
-            document.getElementById('status-message').className = 'error-message';
-            document.getElementById('status-message').textContent = "⚠️ Este sitio está desactivado (el dueño no tiene puntos)";
-            return;
-          }
-
           try {
-            // 1. Dar 5 puntos al visitante
+            const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+            
+            if (!siteDoc.exists()) {
+              statusEl.textContent = "⚠️ Este sitio ya no existe";
+              statusEl.classList.add('error');
+              return;
+            }
+
+            const siteData = siteDoc.data();
+            
+            // Verificar si está activo
+            if (!siteData.active) {
+              statusEl.textContent = "⚠️ Sitio desactivado (sin puntos)";
+              statusEl.classList.add('error');
+              return;
+            }
+
+            // 1. Dar 5 pts al visitante
             if (user) {
               await updateDoc(doc(db, 'users', user.uid), {
                 points: increment(5)
               });
             }
 
-            // 2. Descontar 5 puntos al dueño (si tiene)
+            // 2. Descontar 5 pts al dueño
             const ownerRef = doc(db, 'users', siteData.owner);
             const ownerDoc = await getDoc(ownerRef);
             const ownerPoints = ownerDoc.data()?.points || 0;
@@ -76,28 +124,28 @@
                 points: increment(-5)
               });
             } else {
-              // Desactivar sitio si no tiene puntos
+              // Desactivar si no tiene puntos
               await updateDoc(doc(db, 'publishedSites', siteId), {
                 active: false
               });
             }
 
-            // 3. Actualizar estadísticas del sitio
+            // 3. Actualizar estadísticas
             await updateDoc(doc(db, 'publishedSites', siteId), {
               views: increment(1)
             });
 
-            // Redirigir al sitio
+            // Redirigir
             window.location.href = siteData.url;
           } catch (error) {
-            document.getElementById('status-message').className = 'error-message';
-            document.getElementById('status-message').textContent = `⚠️ Error: ${error.message}`;
+            statusEl.textContent = `⚠️ Error: ${error.message}`;
+            statusEl.classList.add('error');
           }
         }
       }, 1000);
     } else {
-      document.getElementById('status-message').className = 'error-message';
-      document.getElementById('status-message').textContent = "⚠️ URL inválida";
+      statusEl.textContent = "⚠️ URL inválida";
+      statusEl.classList.add('error');
     }
   </script>
 </body>
