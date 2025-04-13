@@ -3,18 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⏳ WebFinder | Viewer</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>⏳ WebFinder | Visor</title>
+  <style>
+    body {
+      background: #0F0F1A;
+      color: white;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      background: #1A1A2E;
+      width: 100%;
+      max-width: 400px;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+    }
+    #countdown {
+      font-size: 4rem;
+      background: linear-gradient(45deg, #00F5FF, #FF00E6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin: 20px 0;
+    }
+    h2 {
+      color: #00F5FF;
+    }
+  </style>
 </head>
-<body class="viewer-page">
-  <div class="viewer-container">
+<body>
+  <div class="container">
     <h2>⏳ Redireccionando...</h2>
     <div id="countdown">30</div>
-    <p>No cierres esta pestaña.</p>
+    <p>No cierres esta pestaña para ganar puntos</p>
   </div>
 
-  <script src="firebase.js"></script>
-  <script>
+  <script src="firebase.js" type="module"></script>
+  <script type="module">
     import { auth, db, doc, getDoc, updateDoc, increment } from './firebase.js';
 
     const siteId = new URLSearchParams(window.location.search).get('siteId');
@@ -38,6 +70,9 @@
           }
         }
       }, 1000);
+    } else {
+      alert("ID de sitio no válido");
+      window.location.href = "public.html";
     }
   </script>
 </body>
