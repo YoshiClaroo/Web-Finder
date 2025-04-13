@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌍 WebFinder | Inicio</title>
-  <!-- ESTILOS (sin cambios) -->
   <style>
     body {
       background: #000;
@@ -59,6 +58,9 @@
       text-decoration: none;
       border-radius: 8px;
       transition: all 0.3s;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
     }
     .button:hover {
       transform: translateY(-2px);
@@ -76,6 +78,7 @@
       border: 1px solid #0ff;
       color: white;
       border-radius: 8px;
+      font-size: 1rem;
     }
     .info-text {
       color: #aaa;
@@ -85,9 +88,15 @@
     .button-group {
       display: flex;
       gap: 10px;
+      margin: 1rem 0;
     }
     .button-group .button {
       flex: 1;
+    }
+    #publish-error {
+      color: #f55;
+      margin-top: 10px;
+      display: none;
     }
   </style>
 </head>
@@ -102,13 +111,12 @@
       <p class="info-text">Se descuentan 5 pts por visita a tus sitios</p>
     </div>
 
-    <!-- FORMULARIO DE PUBLICACIÓN -->
     <div class="form-container">
       <h3>📤 Publicar sitio web</h3>
       <input type="text" id="site-title" placeholder="Título del sitio" required>
       <input type="url" id="site-url" placeholder="https://..." required>
       <button onclick="publishSite()" class="button">Publicar (Costó: 200 pts)</button>
-      <p id="publish-error" class="error" style="color: #f55; display: none;"></p>
+      <p id="publish-error"></p>
     </div>
 
     <div class="button-group">
@@ -174,30 +182,36 @@
     // Botón para ganar puntos
     document.getElementById('earn-points-btn').addEventListener('click', async () => {
       try {
-        // Obtener un sitio aleatorio activo
-        const q = query(collection(db, "publishedSites"), where("active", "==", true));
+        const user = auth.currentUser;
+        if (!user) {
+          window.location.href = "login.html";
+          return;
+        }
+
+        const q = query(
+          collection(db, "publishedSites"), 
+          where("active", "==", true),
+          where("owner", "!=", user.uid)
+        );
+        
         const querySnapshot = await getDocs(q);
         
         if (querySnapshot.empty) {
-          alert("No hay sitios disponibles para ver");
+          alert("No hay sitios disponibles para ver actualmente");
           return;
         }
 
-        const sites = querySnapshot.docs.filter(doc => doc.data().owner !== auth.currentUser.uid);
-        if (sites.length === 0) {
-          alert("No hay sitios de otros usuarios para ver");
-          return;
-        }
-
+        const sites = querySnapshot.docs;
         const randomSite = sites[Math.floor(Math.random() * sites.length)];
+        
         window.location.href = `viewer.html?siteId=${randomSite.id}`;
       } catch (error) {
-        showError(`Error: ${error.message}`);
+        showError(`Error al buscar sitios: ${error.message}`);
       }
     });
 
-    // Botón para ver mis sitios
-    document.getElementById('my-sites-btn').addEventListener('click', async () => {
+    // Botón Mis Sitios
+    document.getElementById('my-sites-btn').addEventListener('click', () => {
       window.location.href = "mysites.html";
     });
 
