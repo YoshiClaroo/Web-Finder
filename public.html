@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🔎 WebFinder | Explorar</title>
+  <title>📂 WebFinder | Mis Sitios</title>
   <style>
     body {
       background: #000;
@@ -38,76 +38,81 @@
       padding: 1.2rem;
       margin: 1rem 0;
       border-radius: 8px;
-      transition: all 0.3s;
-    }
-    .site-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 5px 15px rgba(0, 255, 255, 0.2);
     }
     .site-card h3 {
       margin: 0 0 8px 0;
       color: #0ff;
-    }
-    .site-card a {
-      display: inline-block;
-      margin-top: 10px;
-      padding: 8px 16px;
-      background: linear-gradient(135deg, #0ff, #f0f);
-      color: black;
-      font-weight: bold;
-      text-decoration: none;
-      border-radius: 20px;
-      transition: all 0.3s;
-    }
-    .site-card a:hover {
-      transform: scale(1.05);
     }
     .site-meta {
       color: #aaa;
       font-size: 0.9rem;
       margin: 5px 0;
     }
-    .inactive-tag {
-      background: #f55;
-      color: white;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
+    .status-active {
+      color: #0f0;
+    }
+    .status-inactive {
+      color: #f55;
+    }
+    .back-btn {
       display: inline-block;
-      margin-left: 10px;
+      margin-bottom: 1rem;
+      padding: 10px 15px;
+      background: #333;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🔎 Sitios publicados</h1>
+    <a href="home.html" class="back-btn">← Volver</a>
+    <h1>📂 Mis Sitios Publicados</h1>
     <div id="sites-container"></div>
   </div>
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { db, collection, getDocs } from './firebase.js';
+    import { auth, db, collection, query, where, getDocs } from './firebase.js';
 
-    async function loadSites() {
-      const querySnapshot = await getDocs(collection(db, 'publishedSites'));
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) window.location.href = "login.html";
+
       const container = document.getElementById('sites-container');
-      container.innerHTML = '';
+      container.innerHTML = '<p>Cargando tus sitios...</p>';
 
-      querySnapshot.forEach((doc) => {
-        const site = doc.data();
-        container.innerHTML += `
-          <div class="site-card">
-            <h3>${site.title} ${!site.active ? '<span class="inactive-tag">INACTIVO</span>' : ''}</h3>
-            <p class="site-meta">Visitas: ${site.views || 0} | Publicado: ${new Date(site.timestamp?.toMillis()).toLocaleDateString()}</p>
-            <a href="viewer.html?siteId=${doc.id}" target="_blank" ${!site.active ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>
-              🌐 Visitar (ganar 5 pts)
-            </a>
-          </div>
-        `;
-      });
-    }
+      try {
+        const q = query(collection(db, "publishedSites"), where("owner", "==", user.uid));
+        const querySnapshot = await getDocs(q);
 
-    loadSites();
+        if (querySnapshot.empty) {
+          container.innerHTML = '<p>No has publicado ningún sitio aún.</p>';
+          return;
+        }
+
+        container.innerHTML = '';
+        querySnapshot.forEach((doc) => {
+          const site = doc.data();
+          container.innerHTML += `
+            <div class="site-card">
+              <h3>${site.title}</h3>
+              <p class="site-meta">URL: ${site.url}</p>
+              <p class="site-meta">Visitas: ${site.views || 0}</p>
+              <p class="site-meta">Estado: 
+                <span class="${site.active ? 'status-active' : 'status-inactive'}">
+                  ${site.active ? 'ACTIVO' : 'INACTIVO (sin puntos)'}
+                </span>
+              </p>
+              <p class="site-meta">Puntos restantes: ${site.ownerPoints || 0}</p>
+              <p class="site-meta">Publicado: ${new Date(site.createdAt?.toMillis()).toLocaleString()}</p>
+            </div>
+          `;
+        });
+      } catch (error) {
+        container.innerHTML = `<p style="color:#f55">Error al cargar sitios: ${error.message}</p>`;
+      }
+    });
   </script>
 </body>
 </html>
