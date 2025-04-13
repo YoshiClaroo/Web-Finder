@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌍 WebFinder | Inicio</title>
+  <!-- ESTILOS (sin cambios) -->
   <style>
-    /* TUS ESTILOS ACTUALES (sin cambios) */
     body {
       background: #000;
       color: #fff;
@@ -82,6 +82,13 @@
       font-size: 0.9rem;
       margin: 5px 0;
     }
+    .button-group {
+      display: flex;
+      gap: 10px;
+    }
+    .button-group .button {
+      flex: 1;
+    }
   </style>
 </head>
 <body>
@@ -95,7 +102,7 @@
       <p class="info-text">Se descuentan 5 pts por visita a tus sitios</p>
     </div>
 
-    <!-- FORMULARIO DE PUBLICACIÓN (SIEMPRE VISIBLE) -->
+    <!-- FORMULARIO DE PUBLICACIÓN -->
     <div class="form-container">
       <h3>📤 Publicar sitio web</h3>
       <input type="text" id="site-title" placeholder="Título del sitio" required>
@@ -104,13 +111,17 @@
       <p id="publish-error" class="error" style="color: #f55; display: none;"></p>
     </div>
 
-    <a href="public.html" class="button">🔍 Explorar sitios</a>
+    <div class="button-group">
+      <button id="earn-points-btn" class="button">💰 Ganar Puntos</button>
+      <button id="my-sites-btn" class="button">📂 Mis Sitios</button>
+    </div>
+    
     <button id="logout-btn" class="button">👋 Cerrar sesión</button>
   </div>
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, getDoc, setDoc, updateDoc, increment, signOut } from './firebase.js';
+    import { auth, db, doc, getDoc, setDoc, updateDoc, increment, signOut, collection, query, where, getDocs } from './firebase.js';
 
     // Cargar puntos del usuario
     auth.onAuthStateChanged(async (user) => {
@@ -131,7 +142,6 @@
       if (!title || !url) return showError("❌ Completa todos los campos");
       
       try {
-        // Verificar puntos
         const userDoc = await getDoc(doc(db, "users", user.uid));
         const userPoints = userDoc.data()?.points || 0;
         
@@ -139,18 +149,17 @@
           return showError(`❌ Necesitas 200 puntos (tienes ${userPoints})`);
         }
 
-        // Publicar sitio
         const siteId = crypto.randomUUID();
         await setDoc(doc(db, "publishedSites", siteId), {
           title,
           url,
           owner: user.uid,
-          active: true,
+          ownerPoints: userPoints,
           views: 0,
-          timestamp: new Date()
+          active: true,
+          createdAt: new Date()
         });
 
-        // Descontar puntos
         await updateDoc(doc(db, "users", user.uid), {
           points: increment(-200)
         });
@@ -161,6 +170,36 @@
         showError(`🔥 Error: ${error.message}`);
       }
     };
+
+    // Botón para ganar puntos
+    document.getElementById('earn-points-btn').addEventListener('click', async () => {
+      try {
+        // Obtener un sitio aleatorio activo
+        const q = query(collection(db, "publishedSites"), where("active", "==", true));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          alert("No hay sitios disponibles para ver");
+          return;
+        }
+
+        const sites = querySnapshot.docs.filter(doc => doc.data().owner !== auth.currentUser.uid);
+        if (sites.length === 0) {
+          alert("No hay sitios de otros usuarios para ver");
+          return;
+        }
+
+        const randomSite = sites[Math.floor(Math.random() * sites.length)];
+        window.location.href = `viewer.html?siteId=${randomSite.id}`;
+      } catch (error) {
+        showError(`Error: ${error.message}`);
+      }
+    });
+
+    // Botón para ver mis sitios
+    document.getElementById('my-sites-btn').addEventListener('click', async () => {
+      window.location.href = "mysites.html";
+    });
 
     function showError(message) {
       const errorEl = document.getElementById('publish-error');
