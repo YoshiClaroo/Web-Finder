@@ -138,7 +138,7 @@
           createdAt: new Date()
         });
         
-        alert(`🎉 ¡Cuenta creada con éxito! ${initialPoints > 0 ? 'Has recibido 200 puntos.' : ''}`);
+        alert(`🎉 ¡Cuenta creada con éxito! ${initialPoints > 200 ? 'Has recibido 200 puntos.' : ''}`);
         window.location.href = "home.html";
       } catch (error) {
         let errorMessage = "Error: ";
