@@ -9,17 +9,13 @@
       background: #000;
       color: #fff;
       font-family: 'Inter', system-ui, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
       margin: 0;
       padding: 20px;
     }
     .container {
+      max-width: 800px;
+      margin: 0 auto;
       background: #111;
-      width: 100%;
-      max-width: 600px;
       padding: 2rem;
       border-radius: 12px;
       border: 1px solid rgba(0, 255, 255, 0.2);
@@ -31,6 +27,16 @@
       margin-bottom: 1.5rem;
       font-size: 2.2rem;
       text-shadow: 0 0 8px #0ff;
+    }
+    .back-btn {
+      display: inline-block;
+      padding: 10px 15px;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      color: black;
+      font-weight: bold;
+      text-decoration: none;
+      border-radius: 5px;
+      margin-bottom: 1rem;
     }
     .site-card {
       background: rgba(0, 255, 255, 0.05);
@@ -54,22 +60,18 @@
     .status-inactive {
       color: #f55;
     }
-    .back-btn {
-      display: inline-block;
-      margin-bottom: 1rem;
-      padding: 10px 15px;
-      background: #333;
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
+    #sites-container {
+      margin-top: 1.5rem;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <a href="home.html" class="back-btn">← Volver</a>
+    <a href="home.html" class="back-btn">← Volver al Inicio</a>
     <h1>📂 Mis Sitios Publicados</h1>
-    <div id="sites-container"></div>
+    <div id="sites-container">
+      <p>Cargando tus sitios...</p>
+    </div>
   </div>
 
   <script src="firebase.js" type="module"></script>
@@ -77,13 +79,18 @@
     import { auth, db, collection, query, where, getDocs } from './firebase.js';
 
     auth.onAuthStateChanged(async (user) => {
-      if (!user) window.location.href = "login.html";
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
 
       const container = document.getElementById('sites-container');
-      container.innerHTML = '<p>Cargando tus sitios...</p>';
-
+      
       try {
-        const q = query(collection(db, "publishedSites"), where("owner", "==", user.uid));
+        const q = query(
+          collection(db, "publishedSites"), 
+          where("owner", "==", user.uid)
+        );
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
@@ -96,16 +103,16 @@
           const site = doc.data();
           container.innerHTML += `
             <div class="site-card">
-              <h3>${site.title}</h3>
-              <p class="site-meta">URL: ${site.url}</p>
-              <p class="site-meta">Visitas: ${site.views || 0}</p>
-              <p class="site-meta">Estado: 
+              <h3>${site.title || 'Sin título'}</h3>
+              <p class="site-meta"><strong>URL:</strong> ${site.url}</p>
+              <p class="site-meta"><strong>Visitas:</strong> ${site.views || 0}</p>
+              <p class="site-meta"><strong>Estado:</strong> 
                 <span class="${site.active ? 'status-active' : 'status-inactive'}">
-                  ${site.active ? 'ACTIVO' : 'INACTIVO (sin puntos)'}
+                  ${site.active ? '🟢 ACTIVO' : '🔴 INACTIVO'}
                 </span>
               </p>
-              <p class="site-meta">Puntos restantes: ${site.ownerPoints || 0}</p>
-              <p class="site-meta">Publicado: ${new Date(site.createdAt?.toMillis()).toLocaleString()}</p>
+              <p class="site-meta"><strong>Puntos restantes:</strong> ${site.ownerPoints || 0}</p>
+              <p class="site-meta"><strong>Publicado:</strong> ${new Date(site.createdAt?.toMillis()).toLocaleString()}</p>
             </div>
           `;
         });
