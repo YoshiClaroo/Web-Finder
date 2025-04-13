@@ -117,7 +117,7 @@
       if (!user) window.location.href = "login.html";
       
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      document.getElementById('points').textContent = userDoc.data()?.points || 0;
+      document.getElementById('points').textContent = userDoc.data()?.points || 200;
     });
 
     // Publicar sitio web
@@ -133,7 +133,7 @@
       try {
         // Verificar puntos
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userPoints = userDoc.data()?.points || 0;
+        const userPoints = userDoc.data()?.points || 200;
         
         if (userPoints < 200) {
           return showError(`❌ Necesitas 200 puntos (tienes ${userPoints})`);
