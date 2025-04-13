@@ -112,72 +112,88 @@
     }
     checkPromo();
 
-    // Registro corregido (mismo diseño)
+    // Registro completamente funcional
     document.getElementById('register-btn').addEventListener('click', async () => {
-  const email = prompt("📧 Ingresa tu correo:");
-  const password = prompt("🔒 Crea una contraseña (6+ caracteres):");
-  
-  if (!email || !password) return;
-  
-  try {
-    // 1. Crear usuario en Authentication
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    
-    // 2. Verificar primeros 100 registros
-    const usersRef = collection(db, "users");
-    const snapshot = await getCountFromServer(usersRef);
-    const initialPoints = snapshot.data().count < 100 ? 200 : 0;
-    
-    // 3. Crear documento en Firestore CON TIMEOUT
-    setTimeout(async () => {
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        email: email,
-        points: initialPoints,
-        createdAt: new Date()
-      });
-      alert(`🎉 ¡Registro exitoso! ${initialPoints > 0 ? '+200 pts' : ''}`);
-      window.location.href = "home.html";
-    }, 1000); // Espera 1 segundo
-    
-  } catch (error) {
-    let errorMsg = "Error: ";
-    if (error.code === 'auth/email-already-in-use') {
-      errorMsg += "El correo ya está registrado";
-    } else if (error.code === 'auth/weak-password') {
-      errorMsg += "La contraseña necesita 6+ caracteres";
-    } else {
-      errorMsg += error.message;
-    }
-    document.getElementById('error-message').textContent = errorMsg;
-  }
-});
+      const email = document.getElementById('email').value || prompt("📧 Ingresa tu correo:");
+      const password = document.getElementById('password').value || prompt("🔒 Crea una contraseña segura (6+ caracteres):");
+      
+      if (!email || !password) {
+        document.getElementById('error-message').textContent = "❌ Debes completar ambos campos";
+        return;
+      }
+      
+      try {
+        // Crear usuario en Authentication
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
-        alert(`🎉 ¡Cuenta creada! ${initialPoints > 0 ? '+200 pts' : ''}`);
+        // Verificar primeros 100 registros
+        const usersRef = collection(db, "users");
+        const snapshot = await getCountFromServer(usersRef);
+        const initialPoints = snapshot.data().count < 100 ? 200 : 0;
+        
+        // Crear documento en Firestore
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+          email: email,
+          points: initialPoints,
+          createdAt: new Date()
+        });
+        
+        alert(`🎉 ¡Cuenta creada con éxito! ${initialPoints > 0 ? 'Has recibido 200 puntos.' : ''}`);
         window.location.href = "home.html";
       } catch (error) {
         let errorMessage = "Error: ";
-        if (error.code === 'auth/email-already-in-use') {
-          errorMessage += "El correo ya está registrado";
-        } else if (error.code === 'auth/weak-password') {
-          errorMessage += "La contraseña debe tener 6+ caracteres";
-        } else {
-          errorMessage += error.message;
+        switch(error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = "❌ Este correo ya está registrado";
+            break;
+          case 'auth/weak-password':
+            errorMessage = "❌ La contraseña debe tener al menos 6 caracteres";
+            break;
+          case 'auth/invalid-email':
+            errorMessage = "❌ Correo electrónico no válido";
+            break;
+          case 'permission-denied':
+            errorMessage = "❌ Error de permisos. Actualiza la página e intenta nuevamente";
+            break;
+          default:
+            errorMessage = `❌ Error desconocido: ${error.code}`;
         }
         document.getElementById('error-message').textContent = errorMessage;
+        console.error("Error completo:", error);
       }
     });
 
-    // Login (sin cambios)
-    document.getElementById('login-form').addEventListener('submit', (e) => {
+    // Inicio de sesión funcional
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = e.target[0].value;
       const password = e.target[1].value;
       
-      signInWithEmailAndPassword(auth, email, password)
-        .then(() => window.location.href = "home.html")
-        .catch(error => {
-          document.getElementById('error-message').textContent = "Error: " + error.message;
-        });
+      if (!email || !password) {
+        document.getElementById('error-message').textContent = "❌ Completa ambos campos";
+        return;
+      }
+      
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        window.location.href = "home.html";
+      } catch (error) {
+        let errorMessage = "Error: ";
+        switch(error.code) {
+          case 'auth/user-not-found':
+            errorMessage = "❌ Usuario no encontrado";
+            break;
+          case 'auth/wrong-password':
+            errorMessage = "❌ Contraseña incorrecta";
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = "❌ Demasiados intentos. Intenta más tarde";
+            break;
+          default:
+            errorMessage = `❌ Error al iniciar sesión: ${error.code}`;
+        }
+        document.getElementById('error-message').textContent = errorMessage;
+      }
     });
   </script>
 </body>
