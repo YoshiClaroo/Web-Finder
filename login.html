@@ -5,62 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🔐 WebFinder | Entrada</title>
   <style>
-    body {
-      background: #0F0F1A;
-      color: white;
-      font-family: 'Inter', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      background: #1A1A2E;
-      width: 100%;
-      max-width: 400px;
-      padding: 30px;
-      border-radius: 15px;
-      box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
-      text-align: center;
-    }
-    h1 {
-      background: linear-gradient(90deg, #00F5FF, #FF00E6);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      margin-bottom: 20px;
-      font-size: 2.5rem;
-    }
-    input, button {
-      width: 100%;
-      padding: 14px;
-      margin: 10px 0;
-      border-radius: 8px;
-      font-size: 1rem;
-      border: none;
-    }
-    input {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid #00F5FF;
-      color: white;
-    }
-    button {
-      background: linear-gradient(45deg, #00F5FF, #FF00E6);
-      color: black;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(0, 245, 255, 0.4);
-    }
-    .error {
-      color: #FF5555;
-      margin-top: 10px;
-    }
+    /* TUS ESTILOS ACTUALES (sin cambios) */
   </style>
 </head>
 <body>
@@ -76,25 +21,60 @@
     
     <button id="register-btn">✨ Regístrate</button>
     <p id="error-message" class="error"></p>
+    <p id="promo-message" style="color: #00F5FF;"></p>
   </div>
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from './firebase.js';
+    import { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
+            doc, setDoc, getCountFromServer, collection } from './firebase.js';
 
-    document.getElementById('register-btn').addEventListener('click', () => {
+    // Verificar si aún hay promoción
+    async function checkPromo() {
+      const usersRef = collection(db, "users");
+      const snapshot = await getCountFromServer(usersRef);
+      const userCount = snapshot.data().count;
+      
+      if (userCount < 100) {
+        document.getElementById('promo-message').textContent = 
+          `🔥 Primeros 100 registros reciben 200 pts gratis (${100 - userCount} disponibles)`;
+      }
+    }
+    
+    checkPromo();
+
+    // Registro con 200 pts para primeros 100
+    document.getElementById('register-btn').addEventListener('click', async () => {
       const email = prompt("📧 Ingresa tu correo:");
       const password = prompt("🔒 Crea una contraseña segura:");
       
       if (email && password) {
-        createUserWithEmailAndPassword(auth, email, password)
-          .then(() => alert("🎉 ¡Cuenta creada! Inicia sesión"))
-          .catch(error => {
-            document.getElementById('error-message').textContent = error.message;
+        try {
+          // Verificar cantidad de usuarios
+          const usersRef = collection(db, "users");
+          const snapshot = await getCountFromServer(usersRef);
+          const userCount = snapshot.data().count;
+          
+          // Crear usuario
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          
+          // Asignar 200 pts si es de los primeros 100
+          const initialPoints = userCount < 100 ? 200 : 0;
+          
+          await setDoc(doc(db, "users", userCredential.user.uid), {
+            email,
+            points: initialPoints,
+            createdAt: new Date()
           });
+          
+          alert(`🎉 ¡Cuenta creada! ${initialPoints > 0 ? 'Has recibido 200 pts gratis' : ''}`);
+        } catch (error) {
+          document.getElementById('error-message').textContent = error.message;
+        }
       }
     });
 
+    // Login (código existente)
     document.getElementById('login-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const email = e.target[0].value;
