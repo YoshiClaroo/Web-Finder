@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>⏳ WebFinder | Visor</title>
   <style>
-    /* Tus estilos existentes */
     body {
       background: #000;
       color: #fff;
@@ -78,62 +77,62 @@
       border-radius: 4px;
       cursor: pointer;
     }
+    #login-redirect-btn {
+      margin-top: 1rem;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      color: black;
+      font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>⏳ Redireccionando...</h2>
     <div id="site-info">
-      <p>Estás viendo: <span id="site-title">Cargando...</span></p>
+      <p>Estás viendo: <span id="site-title">futbol para todos</span></p>
     </div>
     <div id="countdown">30</div>
     <div class="progress-bar">
       <div class="progress" id="progress-bar"></div>
     </div>
-    <p id="status-message">No cierres esta pestaña para ganar puntos</p>
+    <p id="status-message" class="error">⚠️ Debes iniciar sesión</p>
+    <button id="login-redirect-btn">Iniciar sesión</button>
     <button id="cancel-btn">Cancelar</button>
   </div>
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp } from './firebase.js';
+    import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp, onAuthStateChanged } from './firebase.js';
 
-    // 1. Configuración inicial
-    const siteId = new URLSearchParams(window.location.search).get('siteId');
-    const user = auth.currentUser;
-    
-    // 2. Elementos del DOM
+    // Elementos del DOM
     const statusEl = document.getElementById('status-message');
     const siteTitleEl = document.getElementById('site-title');
     const countdownEl = document.getElementById('countdown');
     const progressBar = document.getElementById('progress-bar');
     const cancelBtn = document.getElementById('cancel-btn');
+    const loginBtn = document.getElementById('login-redirect-btn');
 
-    // 3. Variables de control
+    // Obtener ID del sitio desde la URL
+    const siteId = new URLSearchParams(window.location.search).get('siteId');
     let countdownTimer;
     let countdownSeconds = 30;
-    let processCompleted = false;
 
-    // 4. Función para formatear URL
+    // Función para formatear URL
     const formatUrl = (url) => {
       if (!url) return null;
       return url.startsWith('http') ? url : `https://${url}`;
     };
 
-    // 5. Función principal de redirección
-    const processRedirection = async () => {
-      if (processCompleted) return;
-      processCompleted = true;
-      
-      clearInterval(countdownTimer);
-      countdownEl.textContent = "0";
-      progressBar.style.width = "100%";
-
+    // Función principal de verificación
+    const verifyAndRedirect = async (user) => {
       try {
-        // Verificar usuario
+        if (!siteId) throw new Error("No se especificó sitio");
         if (!user) throw new Error("Debes iniciar sesión");
 
-        // Obtener datos del sitio
         const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
         if (!siteDoc.exists()) throw new Error("El sitio no existe");
 
@@ -141,33 +140,31 @@
         const formattedUrl = formatUrl(siteData.url);
         if (!formattedUrl) throw new Error("URL no válida");
 
-        // Verificar estado activo
-        if (!siteData.active) throw new Error("El sitio está inactivo");
+        siteTitleEl.textContent = siteData.title || "Sitio sin título";
 
-        // Verificar puntos del dueño
+        // Verificar estado activo y puntos
+        if (!siteData.active) throw new Error("El sitio está inactivo");
+        
         const ownerRef = doc(db, 'users', siteData.owner);
         const ownerDoc = await getDoc(ownerRef);
         const ownerPoints = ownerDoc.data()?.points || 0;
         
         if (ownerPoints < 5) {
-          await updateDoc(doc(db, 'publishedSites', siteId), {
-            active: false
-          });
+          await updateDoc(doc(db, 'publishedSites', siteId), { active: false });
           throw new Error("El dueño no tiene puntos suficientes");
         }
 
         // Actualizar estadísticas
         await Promise.all([
-          updateDoc(ownerRef, { 
-            points: increment(-5) 
-          }),
+          updateDoc(ownerRef, { points: increment(-5) }),
           updateDoc(doc(db, 'publishedSites', siteId), {
             views: increment(1),
             ownerPoints: ownerPoints - 5,
             lastVisited: serverTimestamp()
           }),
           updateDoc(doc(db, 'users', user.uid), {
-            points: increment(5)
+            points: increment(5),
+            lastVisit: serverTimestamp()
           })
         ]);
 
@@ -175,7 +172,7 @@
         window.location.href = formattedUrl;
 
       } catch (error) {
-        console.error("Error en redirección:", error);
+        console.error("Error:", error);
         statusEl.textContent = `⚠️ ${error.message}`;
         statusEl.classList.add('error');
         countdownEl.style.display = "none";
@@ -183,20 +180,22 @@
       }
     };
 
-    // 6. Inicialización
-    if (!siteId) {
-      statusEl.textContent = "Error: No se especificó sitio";
-      statusEl.classList.add('error');
-      countdownEl.style.display = "none";
-      progressBar.style.display = "none";
-    } else {
-      // Cargar datos del sitio
-      getDoc(doc(db, 'publishedSites', siteId))
-        .then(siteDoc => {
-          if (!siteDoc.exists()) throw new Error("Sitio no encontrado");
-          
-          const siteData = siteDoc.data();
-          siteTitleEl.textContent = siteData.title || "Sitio sin título";
+    // Botón de inicio de sesión
+    loginBtn.addEventListener('click', () => {
+      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+    });
+
+    // Botón de cancelar
+    cancelBtn.addEventListener('click', () => {
+      clearInterval(countdownTimer);
+      window.location.href = "home.html";
+    });
+
+    // Verificación de autenticación con reintentos
+    const checkAuthWithRetry = (retries = 3, delay = 1000) => {
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          console.log("Usuario autenticado:", user.uid);
           
           // Iniciar contador
           countdownTimer = setInterval(() => {
@@ -205,23 +204,36 @@
             progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
             
             if (countdownSeconds <= 0) {
-              processRedirection();
+              clearInterval(countdownTimer);
+              verifyAndRedirect(user);
             }
           }, 1000);
-        })
-        .catch(error => {
-          statusEl.textContent = `Error: ${error.message}`;
-          statusEl.classList.add('error');
-          countdownEl.style.display = "none";
-          progressBar.style.display = "none";
-        });
-    }
+          
+          // Ocultar botón de login
+          loginBtn.style.display = "none";
+          statusEl.classList.remove('error');
+          statusEl.textContent = "No cierres esta pestaña para ganar puntos";
+          
+        } else if (retries > 0) {
+          console.log(`Intento de autenticación fallido. Reintentos restantes: ${retries}`);
+          setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
+        } else {
+          console.log("No se pudo verificar autenticación después de varios intentos");
+          loginBtn.style.display = "block";
+        }
+      });
+    };
 
-    // 7. Botón de cancelar
-    cancelBtn.addEventListener('click', () => {
-      clearInterval(countdownTimer);
-      window.location.href = "home.html";
-    });
+    // Inicialización
+    if (siteId) {
+      checkAuthWithRetry();
+    } else {
+      statusEl.textContent = "Error: No se especificó sitio";
+      statusEl.classList.add('error');
+      countdownEl.style.display = "none";
+      progressBar.style.display = "none";
+      loginBtn.style.display = "none";
+    }
   </script>
 </body>
 </html>
