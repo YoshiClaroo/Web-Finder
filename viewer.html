@@ -108,6 +108,16 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    #next-btn {
+      background: linear-gradient(135deg, #f0f, #0ff);
+      color: black;
+      font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -115,6 +125,7 @@
     <h2>⏳ Vista Previa Activa</h2>
     <div id="site-info">
       <p>Estás viendo: <span id="site-title">Cargando...</span></p>
+      <p id="site-points" style="color:#0ff; margin-top:5px;">+5 puntos</p>
     </div>
     
     <div id="countdown">30</div>
@@ -123,14 +134,15 @@
     </div>
     
     <div id="preview-container" class="hidden">
-      <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+      <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
     </div>
     
     <p id="status-message">Iniciando sistema...</p>
     
     <div class="buttons-container">
       <button id="login-redirect-btn" class="hidden">Iniciar sesión</button>
-      <button id="cancel-btn">Cancelar</button>
+      <button id="next-btn">Siguiente Sitio</button>
+      <button id="cancel-btn">Volver al Inicio</button>
     </div>
   </div>
 
@@ -158,10 +170,12 @@
     const elements = {
       status: document.getElementById('status-message'),
       title: document.getElementById('site-title'),
+      pointsInfo: document.getElementById('site-points'),
       countdown: document.getElementById('countdown'),
       progress: document.getElementById('progress-bar'),
       cancelBtn: document.getElementById('cancel-btn'),
       loginBtn: document.getElementById('login-redirect-btn'),
+      nextBtn: document.getElementById('next-btn'),
       preview: document.getElementById('site-preview'),
       container: document.getElementById('preview-container')
     };
@@ -170,16 +184,31 @@
     let currentSession = {
       timer: null,
       secondsLeft: SESSION_DURATION,
-      currentSite: null
+      currentSite: null,
+      isTransferComplete: false
     };
 
     // Funciones auxiliares
-    const formatUrl = (url) => url?.startsWith('http') ? url : `https://${url}`;
+    const formatUrl = (url) => {
+      if (!url) return null;
+      try {
+        new URL(url.startsWith('http') ? url : `https://${url}`);
+        return url.startsWith('http') ? url : `https://${url}`;
+      } catch {
+        return null;
+      }
+    };
     
     const showError = (message) => {
       elements.status.textContent = `⚠️ ${message}`;
       elements.status.classList.add('error');
       elements.container.classList.add('hidden');
+      elements.nextBtn.style.display = 'none';
+    };
+
+    const showSuccess = (message) => {
+      elements.status.textContent = message;
+      elements.status.classList.remove('error');
     };
 
     const updateTimerDisplay = () => {
@@ -187,14 +216,21 @@
       elements.progress.style.width = `${100 - (currentSession.secondsLeft * (100 / SESSION_DURATION))}%`;
     };
 
-    const getRandomActiveSite = async () => {
+    const getRandomActiveSite = async (excludeId = null) => {
       try {
-        const q = query(
+        let q = query(
           collection(db, 'publishedSites'),
           where("active", "==", true)
         );
+        
         const snapshot = await getDocs(q);
-        const sites = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        let sites = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        // Excluir el sitio actual si se especifica
+        if (excludeId) {
+          sites = sites.filter(site => site.id !== excludeId);
+        }
+        
         return sites.length ? sites[Math.floor(Math.random() * sites.length)] : null;
       } catch (error) {
         console.error("Error al buscar sitios:", error);
@@ -229,6 +265,7 @@
         ];
 
         await Promise.all(batchUpdates);
+        currentSession.isTransferComplete = true;
         return true;
       } catch (error) {
         console.error("Error en transferencia de puntos:", error);
@@ -236,30 +273,48 @@
       }
     };
 
-    const startNewSession = async (user) => {
-      // Detener sesión anterior si existe
-      if (currentSession.timer) {
-        clearInterval(currentSession.timer);
+    const loadSiteInIframe = (url) => {
+      const formattedUrl = formatUrl(url);
+      if (!formattedUrl) {
+        throw new Error("La URL del sitio no es válida");
       }
+      
+      elements.preview.src = formattedUrl;
+      elements.container.classList.remove('hidden');
+    };
 
+    const startNewSession = async (user) => {
+      // Reiniciar estado
+      clearInterval(currentSession.timer);
+      currentSession.isTransferComplete = false;
+      elements.nextBtn.style.display = 'none';
+      
       try {
-        // Obtener nuevo sitio aleatorio
-        const site = await getRandomActiveSite();
+        // Obtener nuevo sitio aleatorio (excluyendo el actual si existe)
+        const site = await getRandomActiveSite(currentSession.currentSite?.id);
+        
         if (!site) {
-          showError("No hay sitios disponibles");
+          showError("No hay más sitios disponibles");
           return;
         }
-
-        // Transferir puntos
-        await transferPoints(user.uid, site.owner, site.id);
 
         // Configurar vista
         currentSession.currentSite = site;
         elements.title.textContent = site.title || "Sitio sin título";
-        elements.preview.src = formatUrl(site.url);
-        elements.container.classList.remove('hidden');
-        elements.status.textContent = `Vista activa - Ganando ${POINTS_PER_VIEW} puntos`;
-        elements.status.classList.remove('error');
+        elements.pointsInfo.textContent = `+${POINTS_PER_VIEW} puntos`;
+        showSuccess("Cargando sitio...");
+        
+        // Cargar iframe
+        loadSiteInIframe(site.url);
+        
+        // Transferir puntos (solo si es un usuario diferente al dueño)
+        if (user.uid !== site.owner) {
+          await transferPoints(user.uid, site.owner, site.id);
+          showSuccess(`Vista activa - Ganando ${POINTS_PER_VIEW} puntos`);
+        } else {
+          showSuccess("Visualizando tu propio sitio");
+          elements.pointsInfo.textContent = "0 puntos (es tu sitio)";
+        }
 
         // Iniciar temporizador
         currentSession.secondsLeft = SESSION_DURATION;
@@ -271,7 +326,7 @@
           
           if (currentSession.secondsLeft <= 0) {
             clearInterval(currentSession.timer);
-            startNewSession(user); // Rotar automáticamente
+            elements.nextBtn.style.display = 'block';
           }
         }, 1000);
 
@@ -288,6 +343,10 @@
       window.location.href = "home.html";
     });
 
+    elements.nextBtn.addEventListener('click', () => {
+      startNewSession(auth.currentUser);
+    });
+
     elements.loginBtn.addEventListener('click', () => {
       window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
     });
@@ -296,7 +355,27 @@
     onAuthStateChanged(auth, (user) => {
       if (user) {
         elements.loginBtn.classList.add('hidden');
-        startNewSession(user);
+        
+        // Manejar parámetro siteId si existe
+        const params = new URLSearchParams(window.location.search);
+        const siteId = params.get('siteId');
+        
+        if (siteId) {
+          // Cargar sitio específico
+          getDoc(doc(db, 'publishedSites', siteId))
+            .then(doc => {
+              if (doc.exists()) {
+                currentSession.currentSite = { id: doc.id, ...doc.data() };
+                startNewSession(user);
+              } else {
+                startNewSession(user); // Cargar aleatorio si no existe
+              }
+            })
+            .catch(() => startNewSession(user));
+        } else {
+          // Cargar sitio aleatorio
+          startNewSession(user);
+        }
       } else {
         elements.loginBtn.classList.remove('hidden');
         showError("Debes iniciar sesión");
