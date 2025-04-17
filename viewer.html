@@ -117,7 +117,6 @@
       <div class="progress" id="progress-bar"></div>
     </div>
     
-    <!-- Iframe para mostrar el sitio -->
     <div id="preview-container" class="hidden">
       <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
     </div>
@@ -127,29 +126,68 @@
     <button id="cancel-btn">Cancelar</button>
   </div>
 
-  <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp, onAuthStateChanged, collection, query, where, getDocs } from './firebase.js';
+    import { 
+      auth, 
+      db, 
+      doc, 
+      getDoc, 
+      updateDoc, 
+      increment, 
+      serverTimestamp, 
+      onAuthStateChanged,
+      collection,
+      query,
+      where,
+      getDocs
+    } from './firebase.js';
+
+    // Configuración
+    const SESSION_DURATION = 30; // segundos
+    const POINTS_PER_VIEW = 5;
 
     // Elementos del DOM
-    const statusEl = document.getElementById('status-message');
-    const siteTitleEl = document.getElementById('site-title');
-    const countdownEl = document.getElementById('countdown');
-    const progressBar = document.getElementById('progress-bar');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const loginBtn = document.getElementById('login-redirect-btn');
-    const previewContainer = document.getElementById('preview-container');
-    const previewIframe = document.getElementById('site-preview');
+    const elements = {
+      status: document.getElementById('status-message'),
+      title: document.getElementById('site-title'),
+      countdown: document.getElementById('countdown'),
+      progress: document.getElementById('progress-bar'),
+      cancelBtn: document.getElementById('cancel-btn'),
+      loginBtn: document.getElementById('login-redirect-btn'),
+      preview: document.getElementById('site-preview'),
+      container: document.getElementById('preview-container')
+    };
 
-    // Obtener ID del sitio desde la URL
-    const siteId = new URLSearchParams(window.location.search).get('siteId');
-    let countdownTimer;
-    let countdownSeconds = 30;
+    // Estado global
+    let currentSession = {
+      timer: null,
+      secondsLeft: SESSION_DURATION,
+      currentSite: null
+    };
 
     // Función para formatear URL
     const formatUrl = (url) => {
       if (!url) return null;
       return url.startsWith('http') ? url : `https://${url}`;
+    };
+
+    // Función para mostrar/ocultar elementos
+    const showError = (message) => {
+      elements.status.textContent = `⚠️ ${message}`;
+      elements.status.classList.add('error');
+      elements.container.classList.add('hidden');
+    };
+
+    const showSuccess = (message) => {
+      elements.status.textContent = message;
+      elements.status.classList.remove('error');
+      elements.container.classList.remove('hidden');
+    };
+
+    // Función para actualizar el temporizador
+    const updateTimerDisplay = () => {
+      elements.countdown.textContent = currentSession.secondsLeft;
+      elements.progress.style.width = `${100 - (currentSession.secondsLeft * (100 / SESSION_DURATION))}%`;
     };
 
     // Función para obtener un sitio aleatorio activo
@@ -167,119 +205,118 @@
         return sites.length > 0 ? sites[Math.floor(Math.random() * sites.length)] : null;
       } catch (error) {
         console.error("Error al buscar sitios:", error);
-        return null;
+        throw error;
       }
     };
 
-    // Función principal modificada (con iframe)
+    // Función principal para mostrar el sitio en iframe
     const showSiteInIframe = async (user) => {
       try {
-        if (!siteId) throw new Error("No se especificó sitio");
         if (!user) throw new Error("Debes iniciar sesión");
-
-        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
-        if (!siteDoc.exists()) throw new Error("El sitio no existe");
-
-        const siteData = siteDoc.data();
-        const formattedUrl = formatUrl(siteData.url);
-        if (!formattedUrl) throw new Error("URL no válida");
-
-        siteTitleEl.textContent = siteData.title || "Sitio sin título";
-        previewIframe.src = formattedUrl;
-        previewContainer.classList.remove('hidden');
-
-        // Verificar estado activo y puntos
-        if (!siteData.active) throw new Error("El sitio está inactivo");
         
-        const ownerRef = doc(db, 'users', siteData.owner);
-        const ownerDoc = await getDoc(ownerRef);
-        const ownerPoints = ownerDoc.data()?.points || 0;
+        // Obtener el sitio actual o uno aleatorio
+        const params = new URLSearchParams(window.location.search);
+        let siteId = params.get('siteId');
+        let siteData;
         
-        if (ownerPoints < 5) {
-          await updateDoc(doc(db, 'publishedSites', siteId), { active: false });
-          throw new Error("El dueño no tiene puntos suficientes");
+        if (siteId) {
+          const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+          if (!siteDoc.exists()) throw new Error("El sitio no existe");
+          siteData = siteDoc.data();
+        } else {
+          const randomSite = await getRandomActiveSite();
+          if (!randomSite) throw new Error("No hay sitios disponibles");
+          siteId = randomSite.id;
+          siteData = randomSite;
         }
 
-        // Actualizar estadísticas
-        await Promise.all([
-          updateDoc(ownerRef, { points: increment(-5) }),
-          updateDoc(doc(db, 'publishedSites', siteId), {
-            views: increment(1),
-            ownerPoints: ownerPoints - 5,
-            lastVisited: serverTimestamp()
-          }),
-          updateDoc(doc(db, 'users', user.uid), {
-            points: increment(5),
-            lastVisit: serverTimestamp()
-          })
-        ]);
+        // Mostrar información del sitio
+        elements.title.textContent = siteData.title || "Sitio sin título";
+        const formattedUrl = formatUrl(siteData.url);
+        if (!formattedUrl) throw new Error("URL no válida");
+        
+        // Cargar iframe
+        elements.preview.src = formattedUrl;
+        showSuccess("Vista previa activa - Gana puntos");
 
-        // Configurar temporizador para rotación automática
-        countdownTimer = setInterval(async () => {
-          countdownSeconds--;
-          countdownEl.textContent = countdownSeconds;
-          progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
+        // Verificar puntos del dueño (excepto si es el propio usuario)
+        if (user.uid !== siteData.owner) {
+          const ownerRef = doc(db, 'users', siteData.owner);
+          const ownerDoc = await getDoc(ownerRef);
+          const ownerPoints = ownerDoc.data()?.points || 0;
           
-          if (countdownSeconds <= 0) {
-            clearInterval(countdownTimer);
-            const nextSite = await getRandomActiveSite();
-            if (nextSite) {
-              window.location.href = `viewer.html?siteId=${nextSite.id}`;
-            } else {
-              statusEl.textContent = "No hay más sitios disponibles";
-            }
+          if (ownerPoints < POINTS_PER_VIEW) {
+            await updateDoc(doc(db, 'publishedSites', siteId), { active: false });
+            throw new Error("El dueño no tiene puntos suficientes");
+          }
+
+          // Transferir puntos
+          await Promise.all([
+            updateDoc(ownerRef, { points: increment(-POINTS_PER_VIEW) }),
+            updateDoc(doc(db, 'publishedSites', siteId), {
+              views: increment(1),
+              lastVisited: serverTimestamp()
+            }),
+            updateDoc(doc(db, 'users', user.uid), {
+              points: increment(POINTS_PER_VIEW),
+              lastVisit: serverTimestamp()
+            })
+          ]);
+        }
+
+        // Iniciar temporizador
+        currentSession.secondsLeft = SESSION_DURATION;
+        updateTimerDisplay();
+        
+        currentSession.timer = setInterval(() => {
+          currentSession.secondsLeft--;
+          updateTimerDisplay();
+          
+          if (currentSession.secondsLeft <= 0) {
+            clearInterval(currentSession.timer);
+            // Cargar nuevo sitio automáticamente
+            window.location.href = `viewer.html?siteId=${siteId}`;
           }
         }, 1000);
 
       } catch (error) {
         console.error("Error:", error);
-        statusEl.textContent = `⚠️ ${error.message}`;
-        statusEl.classList.add('error');
-        countdownEl.style.display = "none";
-        progressBar.style.display = "none";
+        showError(error.message);
+        
+        // Reintentar después de 5 segundos si es error de permisos
+        if (error.message.includes("permission")) {
+          setTimeout(() => showSiteInIframe(user), 5000);
+        }
       }
     };
 
-    // Botón de inicio de sesión
-    loginBtn.addEventListener('click', () => {
-      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
-    });
-
-    // Botón de cancelar
-    cancelBtn.addEventListener('click', () => {
-      clearInterval(countdownTimer);
+    // Event listeners
+    elements.cancelBtn.addEventListener('click', () => {
+      clearInterval(currentSession.timer);
       window.location.href = "home.html";
     });
 
-    // Verificación de autenticación con reintentos
-    const checkAuthWithRetry = (retries = 3, delay = 1000) => {
-      onAuthStateChanged(auth, (user) => {
-        if (user) {
-          console.log("Usuario autenticado:", user.uid);
-          loginBtn.style.display = "none";
-          statusEl.classList.remove('error');
-          statusEl.textContent = "Vista previa activa - Gana puntos";
-          showSiteInIframe(user);
-        } else if (retries > 0) {
-          console.log(`Intento de autenticación fallido. Reintentos restantes: ${retries}`);
-          setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
-        } else {
-          console.log("No se pudo verificar autenticación después de varios intentos");
-          loginBtn.style.display = "block";
-        }
-      });
-    };
+    elements.loginBtn.addEventListener('click', () => {
+      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+    });
 
     // Inicialización
-    if (siteId) {
-      checkAuthWithRetry();
-    } else {
-      statusEl.textContent = "Error: No se especificó sitio";
-      statusEl.classList.add('error');
-      countdownEl.style.display = "none";
-      progressBar.style.display = "none";
-      loginBtn.style.display = "none";
-    }
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        elements.loginBtn.classList.add('hidden');
+        showSiteInIframe(user);
+      } else {
+        elements.loginBtn.classList.remove('hidden');
+        showError("Debes iniciar sesión");
+      }
+    });
+
+    // Limpiar temporizador al salir
+    window.addEventListener('beforeunload', () => {
+      if (currentSession.timer) {
+        clearInterval(currentSession.timer);
+      }
+    });
   </script>
 </body>
 </html>
