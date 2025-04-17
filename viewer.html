@@ -176,101 +176,80 @@
       
       if (countdownSeconds <= 0) {
         clearInterval(countdownTimer);
+        sessionStorage.removeItem(`visited_${new URLSearchParams(window.location.search).get('siteId')}`);
         window.location.reload();
       }
     };
 
     const loadSite = async (user) => {
-  const params = new URLSearchParams(window.location.search);
-  const siteId = params.get('siteId');
-  
-  if (!siteId) {
-    showError("No se especificó sitio");
-    return;
-  }
-
-  try {
-    const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
-    if (!siteDoc.exists()) {
-      showError("Sitio no encontrado");
-      return;
-    }
-
-    const siteData = siteDoc.data();
-    console.log("Datos del sitio:", siteData); // Log para depuración
-    elements.title.textContent = siteData.title || "Sitio sin título";
-    
-    const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
-    elements.preview.src = url;
-
-    if (user && user.uid !== siteData.owner) {
-      try {
-        console.log("Usuario visitante:", user.uid);
-        console.log("Dueño del sitio:", siteData.owner);
-        
-        // 1. Verificar y actualizar dueño primero
-        const ownerRef = doc(db, 'users', siteData.owner);
-        const ownerDoc = await getDoc(ownerRef);
-        
-        if (!ownerDoc.exists()) {
-          showError("Dueño no registrado");
-          return;
-        }
-        
-        const currentOwnerPoints = ownerDoc.data().points || 0;
-        console.log("Puntos actuales del dueño:", currentOwnerPoints);
-        
-        if (currentOwnerPoints < POINTS_PER_VIEW) {
-          showError("Dueño sin puntos suficientes");
-          return;
-        }
-
-        // 2. Actualizar puntos del dueño (restar)
-        await updateDoc(ownerRef, {
-          points: increment(-POINTS_PER_VIEW),
-          lastUpdated: serverTimestamp()
-        });
-        console.log("Puntos descontados al dueño");
-
-        // 3. Actualizar puntos del visitante (sumar)
-        await updateDoc(doc(db, 'users', user.uid), {
-          points: increment(POINTS_PER_VIEW),
-          lastVisit: serverTimestamp()
-        });
-        console.log("Puntos agregados al visitante");
-
-        // 4. Actualizar vistas del sitio
-        await updateDoc(doc(db, 'publishedSites', siteId), {
-          views: increment(1),
-          lastVisited: serverTimestamp()
-        });
-        console.log("Vista registrada");
-        
-        elements.pointsInfo.textContent = `+${POINTS_PER_VIEW}pts`;
-      } catch (pointsError) {
-        console.error("Error en transacción:", pointsError);
-        showError("Error en transacción. Intenta recargar.");
-        elements.pointsInfo.textContent = "";
+      // Limpiar temporizador anterior si existe
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
       }
-    } else if (user) {
-      elements.pointsInfo.textContent = "Tu sitio";
-    }
 
-    // Configuración del temporizador
-    countdownSeconds = SESSION_DURATION;
-    elements.countdown.textContent = countdownSeconds;
-    elements.progress.style.background = "linear-gradient(90deg, #0ff 0%, #f0f 0%)";
-    countdownTimer = setInterval(updateTimer, 1000);
+      const params = new URLSearchParams(window.location.search);
+      const siteId = params.get('siteId');
+      
+      if (!siteId) {
+        showError("No se especificó sitio");
+        return;
+      }
 
-  } catch (error) {
-    console.error("Error general:", error);
-    showError("Error al cargar");
-  }
+      try {
+        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+        if (!siteDoc.exists()) {
+          showError("Sitio no encontrado");
+          return;
+        }
 
+        const siteData = siteDoc.data();
+        elements.title.textContent = siteData.title || "Sitio sin título";
+        
+        // Resetear iframe antes de cargar nueva URL
+        elements.preview.src = 'about:blank';
+        const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
+        elements.preview.src = url;
+
+        if (user && user.uid !== siteData.owner) {
+          try {
+            // Verificar si ya se registró esta visita
+            const visitKey = `visited_${siteId}`;
+            if (!sessionStorage.getItem(visitKey)) {
+              // Actualizar puntos del visitante
+              await updateDoc(doc(db, 'users', user.uid), {
+                points: increment(POINTS_PER_VIEW),
+                lastVisit: serverTimestamp()
+              });
+              
+              // Actualizar puntos del dueño
+              await updateDoc(doc(db, 'users', siteData.owner), {
+                points: increment(-POINTS_PER_VIEW),
+                lastUpdated: serverTimestamp()
+              });
+              
+              // Actualizar vistas del sitio
+              await updateDoc(doc(db, 'publishedSites', siteId), {
+                views: increment(1),
+                lastVisited: serverTimestamp()
+              });
+              
+              // Marcar como visitado en esta sesión
+              sessionStorage.setItem(visitKey, 'true');
+              
+              elements.pointsInfo.textContent = `+${POINTS_PER_VIEW}pts`;
+            } else {
+              elements.pointsInfo.textContent = "Ya visitado";
+            }
+          } catch (pointsError) {
+            console.error("Error en puntos:", pointsError);
+            showError("Error al actualizar puntos");
+            elements.pointsInfo.textContent = "";
+          }
         } else if (user) {
           elements.pointsInfo.textContent = "Tu sitio";
         }
 
+        // Configurar temporizador
         countdownSeconds = SESSION_DURATION;
         elements.countdown.textContent = countdownSeconds;
         elements.progress.style.background = "linear-gradient(90deg, #0ff 0%, #f0f 0%)";
@@ -278,13 +257,24 @@
 
       } catch (error) {
         console.error("Error crítico:", error);
-        showError("Error al cargar");
+        showError("Error al cargar el sitio");
+        // Forzar recarga si hay error
+        setTimeout(() => window.location.reload(), 2000);
       }
     };
 
+    // Botón Cancelar mejorado
     elements.cancelBtn.addEventListener('click', () => {
       clearInterval(countdownTimer);
+      // Limpiar sessionStorage al cancelar
+      sessionStorage.clear();
+      // Redirección con fallback
       window.location.href = "home.html";
+      setTimeout(() => {
+        if (window.location.href.includes("visor.html")) {
+          window.location.href = "/home.html";
+        }
+      }, 500);
     });
 
     onAuthStateChanged(auth, (user) => {
