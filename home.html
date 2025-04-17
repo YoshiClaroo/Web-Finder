@@ -98,9 +98,26 @@
       margin-top: 10px;
       display: none;
     }
+
+    /* ===== [NUEVO] Estilos para PC ===== */
+    @media (min-width: 768px) {
+      .container {
+        max-width: 800px;  /* Más ancho en PC */
+        padding: 3rem;     /* Más espacio interno */
+      }
+      .button-group {
+        justify-content: center;  /* Centra los botones "Ganar Puntos" y "Mis Sitios" */
+      }
+      .button-group .button {
+        flex: initial;    /* Evita que los botones se estiren */
+        width: auto;
+        min-width: 200px; /* Ancho mínimo para PC */
+      }
+    }
   </style>
 </head>
 <body>
+  <!-- [El resto del HTML se mantiene igual] -->
   <div class="container">
     <h1>🌍 WebFinder</h1>
     
@@ -129,6 +146,7 @@
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
+    // [El JavaScript se mantiene igual]
     import { 
       auth, 
       db, 
