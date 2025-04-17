@@ -20,7 +20,7 @@
     .container {
       background: #111;
       width: 100%;
-      max-width: 400px;
+      max-width: 800px;
       padding: 2rem;
       border-radius: 12px;
       border: 1px solid rgba(0, 255, 255, 0.2);
@@ -87,13 +87,14 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    /* Estilos para el iframe */
     #preview-container {
       width: 100%;
       height: 60vh;
-      margin: 1rem 0;
+      margin: 2rem 0;
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid rgba(0, 255, 255, 0.2);
+      border: 1px solid rgba(0, 255, 255, 0.3);
     }
     #site-preview {
       width: 100%;
@@ -104,13 +105,24 @@
     .hidden {
       display: none;
     }
+    .buttons-container {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 1rem;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>⏳ Vista Previa Activa</h2>
     <div id="site-info">
-      <p>Estás viendo: <span id="site-title">futbol para todos</span></p>
+      <p>Estás viendo: <span id="site-title">Cargando...</span></p>
+    </div>
+    
+    <div id="countdown">30</div>
+    <div class="progress-bar">
+      <div class="progress" id="progress-bar"></div>
     </div>
     
     <!-- Iframe para la vista previa -->
@@ -118,193 +130,151 @@
       <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
     </div>
     
-    <div id="countdown">30</div>
-    <div class="progress-bar">
-      <div class="progress" id="progress-bar"></div>
+    <p id="status-message">Cargando vista previa...</p>
+    
+    <div class="buttons-container">
+      <button id="login-redirect-btn" class="hidden">Iniciar sesión</button>
+      <button id="cancel-btn">Cancelar</button>
     </div>
-    <p id="status-message" class="error">⚠️ Debes iniciar sesión</p>
-    <button id="login-redirect-btn" class="hidden">Iniciar sesión</button>
-    <button id="cancel-btn">Cancelar</button>
   </div>
 
-  <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp, onAuthStateChanged, collection, query, where, getDocs } from './firebase.js';
+    import { 
+      auth, 
+      db, 
+      doc, 
+      getDoc, 
+      updateDoc, 
+      increment, 
+      serverTimestamp, 
+      onAuthStateChanged,
+      collection,
+      query,
+      where,
+      getDocs
+    } from './firebase.js';
 
     // Elementos del DOM
-    const statusEl = document.getElementById('status-message');
-    const siteTitleEl = document.getElementById('site-title');
-    const countdownEl = document.getElementById('countdown');
-    const progressBar = document.getElementById('progress-bar');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const loginBtn = document.getElementById('login-redirect-btn');
-    const previewContainer = document.getElementById('preview-container');
-    const previewIframe = document.getElementById('site-preview');
+    const elements = {
+      status: document.getElementById('status-message'),
+      title: document.getElementById('site-title'),
+      countdown: document.getElementById('countdown'),
+      progress: document.getElementById('progress-bar'),
+      cancelBtn: document.getElementById('cancel-btn'),
+      loginBtn: document.getElementById('login-redirect-btn'),
+      preview: document.getElementById('site-preview'),
+      container: document.getElementById('preview-container')
+    };
 
-    // Obtener ID del sitio desde la URL
-    const siteId = new URLSearchParams(window.location.search).get('siteId');
+    // Configuración
+    const params = new URLSearchParams(window.location.search);
+    const siteId = params.get('siteId');
     let countdownTimer;
     let countdownSeconds = 30;
 
-    // Función para formatear URL
-    const formatUrl = (url) => {
-      if (!url) return null;
-      return url.startsWith('http') ? url : `https://${url}`;
+    // Funciones auxiliares
+    const formatUrl = (url) => url?.startsWith('http') ? url : `https://${url}`;
+    
+    const showError = (message) => {
+      elements.status.textContent = `⚠️ ${message}`;
+      elements.status.classList.add('error');
+      elements.container.classList.add('hidden');
     };
 
-    // Función para obtener un sitio aleatorio
-    const getRandomSite = async () => {
+    const startRotationTimer = (userId) => {
+      countdownTimer = setInterval(async () => {
+        countdownSeconds--;
+        elements.countdown.textContent = countdownSeconds;
+        elements.progress.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
+        
+        if (countdownSeconds <= 0) {
+          clearInterval(countdownTimer);
+          try {
+            const nextSite = await getRandomActiveSite();
+            if (nextSite) {
+              window.location.href = `visor.html?siteId=${nextSite.id}`;
+            } else {
+              showError("No hay más sitios disponibles");
+            }
+          } catch (error) {
+            showError("Error al rotar sitios");
+          }
+        }
+      }, 1000);
+    };
+
+    const getRandomActiveSite = async () => {
       try {
-        const sitesQuery = query(
+        const q = query(
           collection(db, 'publishedSites'),
           where("active", "==", true)
         );
-        const snapshot = await getDocs(sitesQuery);
-        const sites = [];
-        snapshot.forEach(doc => {
-          sites.push({ id: doc.id, ...doc.data() });
-        });
-        return sites.length > 0 ? sites[Math.floor(Math.random() * sites.length)] : null;
+        const snapshot = await getDocs(q);
+        const sites = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return sites.length ? sites[Math.floor(Math.random() * sites.length)] : null;
       } catch (error) {
         console.error("Error al buscar sitios:", error);
         return null;
       }
     };
 
-    // Función principal modificada
-    const showPreviewAndRotate = async (user) => {
+    // Función principal
+    const initializePreview = async (user) => {
       try {
         if (!siteId) throw new Error("No se especificó sitio");
-        if (!user) throw new Error("Debes iniciar sesión");
-
-        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
-        if (!siteDoc.exists()) throw new Error("El sitio no existe");
-
-        const siteData = siteDoc.data();
-        const formattedUrl = formatUrl(siteData.url);
-        if (!formattedUrl) throw new Error("URL no válida");
-
-        siteTitleEl.textContent = siteData.title || "Sitio sin título";
-        previewIframe.src = formattedUrl;
-        previewContainer.classList.remove('hidden');
-
-        // Verificar estado activo y puntos
-        if (!siteData.active) throw new Error("El sitio está inactivo");
         
-        const ownerRef = doc(db, 'users', siteData.owner);
-        const ownerDoc = await getDoc(ownerRef);
-        const ownerPoints = ownerDoc.data()?.points || 0;
-        
-        if (ownerPoints < 5) {
-          await updateDoc(doc(db, 'publishedSites', siteId), { active: false });
-          throw new Error("El dueño no tiene puntos suficientes");
-        }
-
-        // Actualizar estadísticas
-        await Promise.all([
-          updateDoc(ownerRef, { points: increment(-5) }),
-          updateDoc(doc(db, 'publishedSites', siteId), {
-            views: increment(1),
-            ownerPoints: ownerPoints - 5,
-            lastVisited: serverTimestamp()
-          }),
-          updateDoc(doc(db, 'users', user.uid), {
-            points: increment(5),
-            lastVisit: serverTimestamp()
-          })
+        const [siteDoc, userDoc] = await Promise.all([
+          getDoc(doc(db, 'publishedSites', siteId)),
+          getDoc(doc(user.uid))
         ]);
 
-        // Mostrar estado exitoso
-        statusEl.textContent = "Vista previa activa - Gana puntos";
-        statusEl.classList.remove('error');
-        loginBtn.classList.add('hidden');
+        if (!siteDoc.exists()) throw new Error("Sitio no encontrado");
+        
+        const siteData = siteDoc.data();
+        elements.title.textContent = siteData.title || "Sitio sin título";
+        elements.preview.src = formatUrl(siteData.url);
+        elements.container.classList.remove('hidden');
+        elements.status.textContent = "Vista previa activa - Gana puntos";
+        
+        // Actualizar puntos
+        await updateDoc(doc(db, 'users', user.uid), {
+          points: increment(5),
+          lastVisit: serverTimestamp()
+        });
+        
+        await updateDoc(doc(db, 'publishedSites', siteId), {
+          views: increment(1),
+          lastVisited: serverTimestamp()
+        });
 
-        // Contador para rotación
-        countdownTimer = setInterval(async () => {
-          countdownSeconds--;
-          countdownEl.textContent = countdownSeconds;
-          progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
-          
-          if (countdownSeconds <= 0) {
-            clearInterval(countdownTimer);
-            const nextSite = await getRandomSite();
-            if (nextSite) {
-              window.location.href = `visor.html?siteId=${nextSite.id}`;
-            } else {
-              statusEl.textContent = "✅ No hay más sitios disponibles";
-              countdownEl.style.display = "none";
-              progressBar.style.display = "none";
-            }
-          }
-        }, 1000);
-
+        startRotationTimer(user.uid);
+        
       } catch (error) {
         console.error("Error:", error);
-        statusEl.textContent = `⚠️ ${error.message}`;
-        statusEl.classList.add('error');
-        previewContainer.classList.add('hidden');
-        countdownEl.style.display = "none";
-        progressBar.style.display = "none";
-        loginBtn.classList.remove('hidden');
+        showError(error.message);
       }
     };
 
-    // Botón de inicio de sesión
-    loginBtn.addEventListener('click', () => {
-      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
-    });
-
-    // Botón de cancelar
-    cancelBtn.addEventListener('click', () => {
+    // Event listeners
+    elements.cancelBtn.addEventListener('click', () => {
       clearInterval(countdownTimer);
       window.location.href = "home.html";
     });
 
-    // Verificación de autenticación mejorada
-    const checkAuthWithRetry = (retries = 3, delay = 1000) => {
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          console.log("Usuario autenticado:", user.uid);
-          try {
-            // Verificar si el token es reciente
-            const idTokenResult = await user.getIdTokenResult(true);
-            const authTime = new Date(idTokenResult.claims.auth_time * 1000);
-            const minutesSinceLogin = (new Date() - authTime) / (1000 * 60);
-            
-            if (minutesSinceLogin > 5) {
-              // Token puede estar obsoleto, forzar refresco
-              await auth.currentUser.getIdToken(true);
-            }
-            
-            showPreviewAndRotate(user);
-          } catch (authError) {
-            console.error("Error de autenticación:", authError);
-            if (retries > 0) {
-              setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
-            } else {
-              statusEl.textContent = "⚠️ Error de sesión. Vuelve a iniciar sesión";
-              loginBtn.classList.remove('hidden');
-            }
-          }
-        } else if (retries > 0) {
-          setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
-        } else {
-          loginBtn.classList.remove('hidden');
-        }
-      });
-    };
+    elements.loginBtn.addEventListener('click', () => {
+      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+    });
 
     // Inicialización
-    if (siteId) {
-      checkAuthWithRetry();
-    } else {
-      statusEl.textContent = "Error: No se especificó sitio";
-      statusEl.classList.add('error');
-      previewContainer.classList.add('hidden');
-      countdownEl.style.display = "none";
-      progressBar.style.display = "none";
-      loginBtn.classList.add('hidden');
-    }
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        elements.loginBtn.classList.add('hidden');
+        initializePreview(user);
+      } else {
+        elements.loginBtn.classList.remove('hidden');
+        showError("Debes iniciar sesión");
+      }
+    });
   </script>
 </body>
 </html>
