@@ -11,68 +11,84 @@
       font-family: 'Inter', system-ui, sans-serif;
       margin: 0;
       padding: 0;
-      text-align: center;
     }
     
-    /* Contenedor de controles (centrado) */
-    .controls-container {
-      background: #111;
+    /* Layout superior compacto */
+    .top-panel {
       width: 100%;
-      max-width: 800px;
-      padding: 1.5rem;
-      margin: 20px auto;
-      border-radius: 12px;
-      border: 1px solid rgba(0, 255, 255, 0.2);
-      box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+      padding: 1rem;
+      background: #111;
+      box-shadow: 0 2px 10px rgba(0, 255, 255, 0.1);
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
     }
     
     h2 {
       color: #0ff;
-      margin-bottom: 1.5rem;
+      margin: 0;
+      font-size: 1.2rem;
     }
     
     #countdown {
-      font-size: 3.5rem;
+      font-size: 1.8rem;
       background: linear-gradient(135deg, #0ff, #f0f);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
       font-weight: bold;
-      margin: 1rem 0;
+      min-width: 50px;
+      text-align: right;
     }
     
-    .progress-bar {
+    /* Barra de progreso como separador */
+    .progress-separator {
       width: 100%;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 3px;
-      margin: 1.5rem 0;
-      overflow: hidden;
-    }
-    
-    .progress {
-      height: 100%;
+      height: 12px; /* Más gruesa */
       background: linear-gradient(90deg, #0ff, #f0f);
-      width: 0%;
-      transition: width 1s linear;
+      margin: 0;
     }
     
-    #site-info {
-      margin-bottom: 1rem;
-      color: #aaa;
+    /* Contenedor de información compacto */
+    .info-panel {
+      max-width: 1200px;
+      margin: 0.5rem auto;
+      padding: 0 1rem;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
     }
     
     #site-title {
       color: #0ff;
       font-weight: bold;
+      max-width: 70%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
-    /* Iframe (ahora ocupa todo el ancho) */
+    #points-earned {
+      color: #0f0;
+      font-weight: bold;
+    }
+    
+    .error {
+      color: #f55;
+      font-size: 0.8rem;
+    }
+    
+    /* Iframe compacto */
     #preview-container {
       width: 100%;
-      height: calc(100vh - 300px); /* Ajusta según necesidades */
-      border: none;
+      height: 300px; /* Altura fija */
       background: #000;
+      border-top: 1px solid rgba(0, 255, 255, 0.2);
     }
     
     #site-preview {
@@ -81,49 +97,50 @@
       border: none;
     }
     
-    #points-earned {
-      color: #0f0;
-      font-weight: bold;
-      margin: 10px 0;
-    }
-    
+    /* Botón flotante */
     #cancel-btn {
-      margin-top: 1rem;
-      background: #333;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 255, 255, 0.2);
       color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
+      border: 1px solid #0ff;
+      padding: 8px 16px;
+      border-radius: 20px;
       cursor: pointer;
-    }
-    
-    .error {
-      color: #f55;
+      backdrop-filter: blur(5px);
+      z-index: 100;
     }
   </style>
 </head>
 <body>
-  <!-- Contenedor de controles (centrado) -->
-  <div class="controls-container">
-    <h2>🌐 Vista Previa</h2>
-    <div id="site-info">
-      <p>Estás viendo: <span id="site-title">Cargando...</span></p>
-      <p id="points-earned"></p>
-      <p id="error-message" class="error"></p>
+  <!-- Panel superior ultra compacto -->
+  <div class="top-panel">
+    <div class="header">
+      <h2>🌐 Vista Previa</h2>
+      <div id="countdown">30</div>
     </div>
-    
-    <div id="countdown">30</div>
-    <div class="progress-bar">
-      <div class="progress" id="progress-bar"></div>
-    </div>
-    
-    <button id="cancel-btn">Volver al Inicio</button>
   </div>
   
-  <!-- Iframe (ocupa todo el ancho) -->
+  <!-- Barra de progreso como separador -->
+  <div class="progress-separator" id="progress-bar"></div>
+  
+  <!-- Panel de información minimalista -->
+  <div class="info-panel">
+    <div>
+      <span id="site-title">Cargando...</span>
+      <span id="points-earned"></span>
+    </div>
+    <div id="error-message" class="error"></div>
+  </div>
+  
+  <!-- Iframe compacto -->
   <div id="preview-container">
     <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
   </div>
+  
+  <!-- Botón flotante -->
+  <button id="cancel-btn">✕ Cancelar</button>
 
   <script type="module">
     import { 
@@ -137,13 +154,11 @@
       onAuthStateChanged
     } from './firebase.js';
 
-    // Configuración
     const SESSION_DURATION = 30;
     const POINTS_PER_VIEW = 5;
     let countdownTimer;
     let countdownSeconds = SESSION_DURATION;
 
-    // Elementos del DOM
     const elements = {
       title: document.getElementById('site-title'),
       countdown: document.getElementById('countdown'),
@@ -154,16 +169,21 @@
       cancelBtn: document.getElementById('cancel-btn')
     };
 
-    // Función para mostrar errores
     const showError = (message) => {
       elements.errorMsg.textContent = message;
     };
 
-    // Temporizador
     const updateTimer = () => {
       countdownSeconds--;
       elements.countdown.textContent = countdownSeconds;
-      elements.progress.style.width = `${100 - (countdownSeconds * (100 / SESSION_DURATION))}%`;
+      
+      // Actualizar ancho de la barra progreso
+      const progressPercent = 100 - (countdownSeconds * (100 / SESSION_DURATION));
+      elements.progress.style.background = `
+        linear-gradient(90deg, 
+        #0ff ${progressPercent}%, 
+        #f0f ${progressPercent}%)
+      `;
       
       if (countdownSeconds <= 0) {
         clearInterval(countdownTimer);
@@ -171,7 +191,6 @@
       }
     };
 
-    // Función principal mejorada
     const loadSite = async (user) => {
       const params = new URLSearchParams(window.location.search);
       const siteId = params.get('siteId');
@@ -182,7 +201,6 @@
       }
 
       try {
-        // 1. Obtener datos del sitio
         const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
         if (!siteDoc.exists()) {
           showError("Sitio no encontrado");
@@ -192,11 +210,9 @@
         const siteData = siteDoc.data();
         elements.title.textContent = siteData.title || "Sitio sin título";
         
-        // 2. Cargar iframe (con validación básica)
         const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
         elements.preview.src = url;
 
-        // 3. Sistema de puntos (solo si está autenticado y no es dueño)
         if (user && user.uid !== siteData.owner) {
           try {
             await updateDoc(doc(db, 'users', user.uid), {
@@ -209,35 +225,31 @@
               lastVisited: serverTimestamp()
             });
             
-            elements.pointsInfo.textContent = `+${POINTS_PER_VIEW} puntos ganados!`;
+            elements.pointsInfo.textContent = `+${POINTS_PER_VIEW}pts`;
           } catch (pointsError) {
             console.warn("Error en puntos:", pointsError);
-            elements.pointsInfo.textContent = "Puntos no registrados";
+            elements.pointsInfo.textContent = "";
           }
         } else if (user) {
-          elements.pointsInfo.textContent = "Visualizando tu propio sitio";
+          elements.pointsInfo.textContent = "Tu sitio";
         }
 
-        // 4. Iniciar temporizador
         countdownSeconds = SESSION_DURATION;
         elements.countdown.textContent = countdownSeconds;
-        elements.progress.style.width = "0%";
+        elements.progress.style.background = "linear-gradient(90deg, #0ff 0%, #f0f 0%)";
         countdownTimer = setInterval(updateTimer, 1000);
 
       } catch (error) {
         console.error("Error crítico:", error);
-        showError("Error al cargar el sitio");
-        elements.pointsInfo.textContent = "Intenta recargar la página";
+        showError("Error al cargar");
       }
     };
 
-    // Eventos
     elements.cancelBtn.addEventListener('click', () => {
       clearInterval(countdownTimer);
       window.location.href = "home.html";
     });
 
-    // Iniciar
     onAuthStateChanged(auth, (user) => {
       loadSite(user).catch(e => console.error("Error inicial:", e));
     });
