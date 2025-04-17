@@ -194,25 +194,25 @@
 
         // ▼▼▼ Zona crítica corregida ▼▼▼
         if (user && user.uid !== siteData.owner) {
-          try {
-            await Promise.all([
-              updateDoc(siteRef, {
-                views: increment(1),
-                lastVisited: serverTimestamp()
-              }),
-              updateDoc(doc(db, 'users', user.uid), {
-                points: increment(-POINTS_PER_VIEW), // ▲ Descuento real
-                lastVisit: serverTimestamp()
-              })
-            ]);
-            elements.pointsInfo.textContent = `✓ -${POINTS_PER_VIEW} pts | +1 visita`;
-          } catch (error) {
-            console.error("Error en actualización:", error);
-            elements.pointsInfo.textContent = "⚠️ Error al registrar";
-          }
-        } else if (user) {
-          elements.pointsInfo.textContent = "🔒 Eres el dueño (no se descuentan puntos)";
-        }
+  try {
+    console.log("Intentando registrar visita..."); // Debug
+    const batchUpdates = await Promise.all([
+      updateDoc(siteRef, {
+        views: increment(1),
+        lastVisited: serverTimestamp()
+      }),
+      updateDoc(doc(db, "users", user.uid), {
+        points: increment(-5),
+        lastVisit: serverTimestamp()
+      })
+    ]);
+    console.log("Actualización exitosa:", batchUpdates); // Debug
+    elements.pointsInfo.textContent = "✓ -5 pts | +1 visita";
+  } catch (error) {
+    console.error("Detalle del error:", error); // Debug detallado
+    elements.pointsInfo.textContent = "⚠️ Error al registrar (consola)";
+  }
+}
         // ▲▲▲ Fin de zona crítica ▲▲▲
 
         countdownSeconds = SESSION_DURATION;
