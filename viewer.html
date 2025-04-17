@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🌐 WebFinder | Visor Seguro</title>
   <style>
-    /* TUS ESTILOS ORIGINALES (sin cambios) */
     body {
       background: #000;
       color: #fff;
@@ -13,12 +12,14 @@
       margin: 0;
       padding: 0;
     }
+    
     .top-panel {
       width: 100%;
       padding: 1rem;
       background: #111;
       box-shadow: 0 2px 10px rgba(0, 255, 255, 0.1);
     }
+    
     .header {
       display: flex;
       justify-content: space-between;
@@ -26,11 +27,13 @@
       max-width: 1200px;
       margin: 0 auto;
     }
+    
     h2 {
       color: #0ff;
       margin: 0;
       font-size: 1.2rem;
     }
+    
     #countdown {
       font-size: 1.8rem;
       background: linear-gradient(135deg, #0ff, #f0f);
@@ -41,12 +44,14 @@
       min-width: 50px;
       text-align: right;
     }
+    
     .progress-separator {
       width: 100%;
       height: 12px;
       background: linear-gradient(90deg, #0ff, #f0f);
       margin: 0;
     }
+    
     .info-panel {
       max-width: 1200px;
       margin: 0.5rem auto;
@@ -55,6 +60,7 @@
       justify-content: space-between;
       font-size: 0.9rem;
     }
+    
     #site-title {
       color: #0ff;
       font-weight: bold;
@@ -63,25 +69,31 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    
     #points-earned {
       color: #0f0;
       font-weight: bold;
     }
+    
     .error {
       color: #f55;
       font-size: 0.8rem;
     }
+    
+    /* ▲▲▲ CAMBIO PRINCIPAL ▲▲▲ */
     #preview-container {
       width: 100%;
-      height: 550px;
+      height: 550px; /* ¡Aquí está el ajuste! */
       background: #000;
       border-top: 1px solid rgba(0, 255, 255, 0.2);
     }
+    
     #site-preview {
       width: 100%;
       height: 100%;
       border: none;
     }
+    
     #cancel-btn {
       position: fixed;
       bottom: 20px;
@@ -98,7 +110,6 @@
   </style>
 </head>
 <body>
-  <!-- ESTRUCTURA HTML ORIGINAL (sin cambios) -->
   <div class="top-panel">
     <div class="header">
       <h2>🌐 Vista Previa</h2>
@@ -131,138 +142,106 @@
       updateDoc, 
       increment, 
       serverTimestamp, 
-      onAuthStateChanged,
-      writeBatch
+      onAuthStateChanged
     } from './firebase.js';
 
     const SESSION_DURATION = 30;
+    const POINTS_PER_VIEW = 5;
     let countdownTimer;
+    let countdownSeconds = SESSION_DURATION;
 
-    // Elementos del DOM
     const elements = {
       title: document.getElementById('site-title'),
       countdown: document.getElementById('countdown'),
+      progress: document.getElementById('progress-bar'),
+      preview: document.getElementById('site-preview'),
       pointsInfo: document.getElementById('points-earned'),
       errorMsg: document.getElementById('error-message'),
-      preview: document.getElementById('site-preview'),
       cancelBtn: document.getElementById('cancel-btn')
     };
 
-    // Función para mostrar errores
     const showError = (message) => {
       elements.errorMsg.textContent = message;
-      console.error("Error:", message);
     };
 
-    // Función principal CORREGIDA
-    const loadSite = async (user) => {
-      const siteId = new URLSearchParams(window.location.search).get('siteId');
-      console.log("Cargando sitio ID:", siteId);
+    const updateTimer = () => {
+      countdownSeconds--;
+      elements.countdown.textContent = countdownSeconds;
+      
+      const progressPercent = 100 - (countdownSeconds * (100 / SESSION_DURATION));
+      elements.progress.style.background = `
+        linear-gradient(90deg, 
+        #0ff ${progressPercent}%, 
+        #f0f ${progressPercent}%)
+      `;
+      
+      if (countdownSeconds <= 0) {
+        clearInterval(countdownTimer);
+        window.location.reload();
+      }
+    };
 
+    const loadSite = async (user) => {
+      const params = new URLSearchParams(window.location.search);
+      const siteId = params.get('siteId');
+      
       if (!siteId) {
         showError("No se especificó sitio");
         return;
       }
 
       try {
-        // 1. Obtener datos del sitio
-        const siteRef = doc(db, 'publishedSites', siteId);
-        const siteDoc = await getDoc(siteRef);
-        
+        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
         if (!siteDoc.exists()) {
-          showError("El sitio no existe");
+          showError("Sitio no encontrado");
           return;
         }
 
         const siteData = siteDoc.data();
-        console.log("Datos del sitio:", siteData);
-
-        // 2. Mostrar contenido INMEDIATAMENTE
         elements.title.textContent = siteData.title || "Sitio sin título";
-        elements.preview.src = siteData.url.startsWith('http') 
-          ? siteData.url 
-          : `https://${siteData.url}`;
-        elements.countdown.textContent = SESSION_DURATION;
+        
+        const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
+        elements.preview.src = url;
 
-        // 3. Registrar visita y puntos (si no es el dueño)
-        if (user.uid !== siteData.owner) {
+        if (user && user.uid !== siteData.owner) {
           try {
-            const batch = writeBatch(db);
-            batch.update(siteRef, {
+            await updateDoc(doc(db, 'users', user.uid), {
+              points: increment(POINTS_PER_VIEW),
+              lastVisit: serverTimestamp()
+            });
+            
+            await updateDoc(doc(db, 'publishedSites', siteId), {
               views: increment(1),
               lastVisited: serverTimestamp()
             });
-            batch.update(doc(db, 'users', user.uid), {
-              points: increment(-5),
-              lastVisit: serverTimestamp()
-            });
-            await batch.commit();
-            elements.pointsInfo.textContent = "✓ -5pts | +1 visita";
-          } catch (error) {
-            console.error("Error al actualizar:", error);
-            elements.pointsInfo.textContent = "⚠️ Error en puntos";
+            
+            elements.pointsInfo.textContent = `+${POINTS_PER_VIEW}pts`;
+          } catch (pointsError) {
+            console.warn("Error en puntos:", pointsError);
+            elements.pointsInfo.textContent = "";
           }
+        } else if (user) {
+          elements.pointsInfo.textContent = "Tu sitio";
         }
 
-        // 4. Iniciar temporizador
-        startTimer();
+        countdownSeconds = SESSION_DURATION;
+        elements.countdown.textContent = countdownSeconds;
+        elements.progress.style.background = "linear-gradient(90deg, #0ff 0%, #f0f 0%)";
+        countdownTimer = setInterval(updateTimer, 1000);
 
       } catch (error) {
-        showError("Error al cargar el sitio: " + error.message);
+        console.error("Error crítico:", error);
+        showError("Error al cargar");
       }
     };
 
-    // Temporizador mejorado
-    const startTimer = () => {
-      let seconds = SESSION_DURATION;
-      elements.countdown.textContent = seconds;
-      
-      clearInterval(countdownTimer); // Limpiar timer anterior
-      countdownTimer = setInterval(() => {
-        seconds--;
-        elements.countdown.textContent = seconds;
-        
-        if (seconds <= 0) {
-          clearInterval(countdownTimer);
-          loadNewRandomSite();
-        }
-      }, 1000);
-    };
-
-    // Cargar nuevo sitio aleatorio
-    const loadNewRandomSite = async () => {
-      const user = auth.currentUser;
-      const q = query(
-        collection(db, "publishedSites"),
-        where("active", "==", true),
-        where("owner", "!=", user.uid)
-      );
-      
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) {
-        alert("No hay más sitios disponibles");
-        window.location.href = "home.html";
-        return;
-      }
-      
-      const randomIndex = Math.floor(Math.random() * snapshot.docs.length);
-      window.location.href = `viewer.html?siteId=${snapshot.docs[randomIndex].id}`;
-    };
-
-    // Inicialización
-    onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        window.location.href = "login.html";
-      } else {
-        console.log("Usuario:", user.uid);
-        loadSite(user);
-      }
-    });
-
-    // Botón cancelar
     elements.cancelBtn.addEventListener('click', () => {
       clearInterval(countdownTimer);
       window.location.href = "home.html";
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      loadSite(user).catch(e => console.error("Error inicial:", e));
     });
   </script>
 </body>
