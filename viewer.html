@@ -132,19 +132,105 @@
       increment, 
       serverTimestamp, 
       onAuthStateChanged,
-      writeBatch,
-      collection,
-      query,
-      where,
-      getDocs
+      writeBatch
     } from './firebase.js';
 
     const SESSION_DURATION = 30;
     let countdownTimer;
-    let countdownSeconds = SESSION_DURATION;
 
-    // 1. Función para cargar sitio aleatorio
-    const loadRandomSite = async () => {
+    // Elementos del DOM
+    const elements = {
+      title: document.getElementById('site-title'),
+      countdown: document.getElementById('countdown'),
+      pointsInfo: document.getElementById('points-earned'),
+      errorMsg: document.getElementById('error-message'),
+      preview: document.getElementById('site-preview'),
+      cancelBtn: document.getElementById('cancel-btn')
+    };
+
+    // Función para mostrar errores
+    const showError = (message) => {
+      elements.errorMsg.textContent = message;
+      console.error("Error:", message);
+    };
+
+    // Función principal CORREGIDA
+    const loadSite = async (user) => {
+      const siteId = new URLSearchParams(window.location.search).get('siteId');
+      console.log("Cargando sitio ID:", siteId);
+
+      if (!siteId) {
+        showError("No se especificó sitio");
+        return;
+      }
+
+      try {
+        // 1. Obtener datos del sitio
+        const siteRef = doc(db, 'publishedSites', siteId);
+        const siteDoc = await getDoc(siteRef);
+        
+        if (!siteDoc.exists()) {
+          showError("El sitio no existe");
+          return;
+        }
+
+        const siteData = siteDoc.data();
+        console.log("Datos del sitio:", siteData);
+
+        // 2. Mostrar contenido INMEDIATAMENTE
+        elements.title.textContent = siteData.title || "Sitio sin título";
+        elements.preview.src = siteData.url.startsWith('http') 
+          ? siteData.url 
+          : `https://${siteData.url}`;
+        elements.countdown.textContent = SESSION_DURATION;
+
+        // 3. Registrar visita y puntos (si no es el dueño)
+        if (user.uid !== siteData.owner) {
+          try {
+            const batch = writeBatch(db);
+            batch.update(siteRef, {
+              views: increment(1),
+              lastVisited: serverTimestamp()
+            });
+            batch.update(doc(db, 'users', user.uid), {
+              points: increment(-5),
+              lastVisit: serverTimestamp()
+            });
+            await batch.commit();
+            elements.pointsInfo.textContent = "✓ -5pts | +1 visita";
+          } catch (error) {
+            console.error("Error al actualizar:", error);
+            elements.pointsInfo.textContent = "⚠️ Error en puntos";
+          }
+        }
+
+        // 4. Iniciar temporizador
+        startTimer();
+
+      } catch (error) {
+        showError("Error al cargar el sitio: " + error.message);
+      }
+    };
+
+    // Temporizador mejorado
+    const startTimer = () => {
+      let seconds = SESSION_DURATION;
+      elements.countdown.textContent = seconds;
+      
+      clearInterval(countdownTimer); // Limpiar timer anterior
+      countdownTimer = setInterval(() => {
+        seconds--;
+        elements.countdown.textContent = seconds;
+        
+        if (seconds <= 0) {
+          clearInterval(countdownTimer);
+          loadNewRandomSite();
+        }
+      }, 1000);
+    };
+
+    // Cargar nuevo sitio aleatorio
+    const loadNewRandomSite = async () => {
       const user = auth.currentUser;
       const q = query(
         collection(db, "publishedSites"),
@@ -153,72 +239,28 @@
       );
       
       const snapshot = await getDocs(q);
-      const sites = snapshot.docs;
-      
-      if (sites.length > 0) {
-        const randomIndex = Math.floor(Math.random() * sites.length);
-        window.location.href = `viewer.html?siteId=${sites[randomIndex].id}&t=${Date.now()}`;
-      } else {
-        alert("No hay sitios disponibles");
+      if (snapshot.empty) {
+        alert("No hay más sitios disponibles");
         window.location.href = "home.html";
+        return;
       }
-    };
-
-    // 2. Función principal (conteo de visitas y puntos)
-    const loadSite = async (user) => {
-      const siteId = new URLSearchParams(window.location.search).get('siteId');
       
-      try {
-        const [siteDoc, userDoc] = await Promise.all([
-          getDoc(doc(db, 'publishedSites', siteId)),
-          getDoc(doc(db, 'users', user.uid))
-        ]);
-
-        // Mostrar datos del sitio
-        document.getElementById('site-title').textContent = siteDoc.data().title || "Sitio sin título";
-        document.getElementById('site-preview').src = siteDoc.data().url;
-
-        // Registrar visita y descontar puntos (si no es el dueño)
-        if (user.uid !== siteDoc.data().owner) {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'publishedSites', siteId), {
-            views: increment(1),
-            lastVisited: serverTimestamp()
-          });
-          batch.update(doc(db, 'users', user.uid), {
-            points: increment(-5),
-            lastVisit: serverTimestamp()
-          });
-          await batch.commit();
-          document.getElementById('points-earned').textContent = "✓ -5pts | +1 visita";
-        }
-
-        // Temporizador para rotación automática
-        countdownSeconds = SESSION_DURATION;
-        countdownTimer = setInterval(() => {
-          countdownSeconds--;
-          document.getElementById('countdown').textContent = countdownSeconds;
-          
-          if (countdownSeconds <= 0) {
-            clearInterval(countdownTimer);
-            loadRandomSite(); // Carga nuevo sitio al terminar
-          }
-        }, 1000);
-
-      } catch (error) {
-        console.error("Error:", error);
-        document.getElementById('error-message').textContent = "Error al cargar el sitio";
-      }
+      const randomIndex = Math.floor(Math.random() * snapshot.docs.length);
+      window.location.href = `viewer.html?siteId=${snapshot.docs[randomIndex].id}`;
     };
 
-    // 3. Iniciar sistema
+    // Inicialización
     onAuthStateChanged(auth, (user) => {
-      if (!user) window.location.href = "login.html";
-      else loadSite(user);
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        console.log("Usuario:", user.uid);
+        loadSite(user);
+      }
     });
 
     // Botón cancelar
-    document.getElementById('cancel-btn').addEventListener('click', () => {
+    elements.cancelBtn.addEventListener('click', () => {
       clearInterval(countdownTimer);
       window.location.href = "home.html";
     });
