@@ -13,7 +13,6 @@
       padding: 0;
     }
     
-    /* Layout superior compacto */
     .top-panel {
       width: 100%;
       padding: 1rem;
@@ -46,15 +45,13 @@
       text-align: right;
     }
     
-    /* Barra de progreso como separador */
     .progress-separator {
       width: 100%;
-      height: 12px; /* Más gruesa */
+      height: 12px;
       background: linear-gradient(90deg, #0ff, #f0f);
       margin: 0;
     }
     
-    /* Contenedor de información compacto */
     .info-panel {
       max-width: 1200px;
       margin: 0.5rem auto;
@@ -83,10 +80,10 @@
       font-size: 0.8rem;
     }
     
-    /* Iframe compacto */
+    /* ▲▲▲ CAMBIO PRINCIPAL ▲▲▲ */
     #preview-container {
       width: 100%;
-      height: 300px; /* Altura fija */
+      height: 400px; /* ¡Aquí está el ajuste! */
       background: #000;
       border-top: 1px solid rgba(0, 255, 255, 0.2);
     }
@@ -97,7 +94,6 @@
       border: none;
     }
     
-    /* Botón flotante */
     #cancel-btn {
       position: fixed;
       bottom: 20px;
@@ -114,7 +110,6 @@
   </style>
 </head>
 <body>
-  <!-- Panel superior ultra compacto -->
   <div class="top-panel">
     <div class="header">
       <h2>🌐 Vista Previa</h2>
@@ -122,10 +117,8 @@
     </div>
   </div>
   
-  <!-- Barra de progreso como separador -->
   <div class="progress-separator" id="progress-bar"></div>
   
-  <!-- Panel de información minimalista -->
   <div class="info-panel">
     <div>
       <span id="site-title">Cargando...</span>
@@ -134,12 +127,10 @@
     <div id="error-message" class="error"></div>
   </div>
   
-  <!-- Iframe compacto -->
   <div id="preview-container">
     <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
   </div>
   
-  <!-- Botón flotante -->
   <button id="cancel-btn">✕ Cancelar</button>
 
   <script type="module">
@@ -177,7 +168,6 @@
       countdownSeconds--;
       elements.countdown.textContent = countdownSeconds;
       
-      // Actualizar ancho de la barra progreso
       const progressPercent = 100 - (countdownSeconds * (100 / SESSION_DURATION));
       elements.progress.style.background = `
         linear-gradient(90deg, 
