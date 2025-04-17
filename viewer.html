@@ -1,22 +1,105 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <!-- ... (mantén el mismo <head> que ya tienes) ... -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⏳ WebFinder | Visor</title>
   <style>
-    /* Añade esto al CSS existente */
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      background: #111;
+      width: 100%;
+      max-width: 400px;
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+    }
+    h2 {
+      color: #0ff;
+      margin-bottom: 1.5rem;
+    }
+    #countdown {
+      font-size: 3.5rem;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      margin: 1.5rem 0;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      background: linear-gradient(90deg, #0ff, #f0f);
+      width: 0%;
+      transition: width 1s linear;
+    }
+    #status-message {
+      margin-top: 1rem;
+      color: #0ff;
+    }
+    .error {
+      color: #f55 !important;
+    }
+    #site-info {
+      margin-bottom: 1rem;
+      color: #aaa;
+    }
+    #site-title {
+      color: #0ff;
+      font-weight: bold;
+    }
+    #cancel-btn {
+      margin-top: 1rem;
+      background: #333;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #login-redirect-btn {
+      margin-top: 1rem;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      color: black;
+      font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
     #preview-container {
       width: 100%;
       height: 60vh;
       margin: 1rem 0;
-      border: 1px solid rgba(0, 255, 255, 0.3);
       border-radius: 8px;
       overflow: hidden;
+      border: 1px solid rgba(0, 255, 255, 0.2);
     }
     #site-preview {
       width: 100%;
       height: 100%;
       border: none;
-      background: #222;
+      background: #000;
     }
     .hidden {
       display: none;
@@ -25,13 +108,13 @@
 </head>
 <body>
   <div class="container">
-    <h2>👁️ Vista Previa</h2>
+    <h2>⏳ Vista Previa Activa</h2>
     <div id="site-info">
       <p>Estás viendo: <span id="site-title">futbol para todos</span></p>
     </div>
     
     <!-- Iframe para la vista previa -->
-    <div id="preview-container">
+    <div id="preview-container" class="hidden">
       <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
     </div>
     
@@ -40,7 +123,7 @@
       <div class="progress" id="progress-bar"></div>
     </div>
     <p id="status-message" class="error">⚠️ Debes iniciar sesión</p>
-    <button id="login-redirect-btn">Iniciar sesión</button>
+    <button id="login-redirect-btn" class="hidden">Iniciar sesión</button>
     <button id="cancel-btn">Cancelar</button>
   </div>
 
@@ -49,22 +132,43 @@
     import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp, onAuthStateChanged, collection, query, where, getDocs } from './firebase.js';
 
     // Elementos del DOM
-    const previewIframe = document.getElementById('site-preview');
+    const statusEl = document.getElementById('status-message');
+    const siteTitleEl = document.getElementById('site-title');
+    const countdownEl = document.getElementById('countdown');
+    const progressBar = document.getElementById('progress-bar');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const loginBtn = document.getElementById('login-redirect-btn');
     const previewContainer = document.getElementById('preview-container');
-    // ... (mantén el resto de tus variables existentes) ...
+    const previewIframe = document.getElementById('site-preview');
 
-    // Función para cargar una página aleatoria
+    // Obtener ID del sitio desde la URL
+    const siteId = new URLSearchParams(window.location.search).get('siteId');
+    let countdownTimer;
+    let countdownSeconds = 30;
+
+    // Función para formatear URL
+    const formatUrl = (url) => {
+      if (!url) return null;
+      return url.startsWith('http') ? url : `https://${url}`;
+    };
+
+    // Función para obtener un sitio aleatorio
     const getRandomSite = async () => {
-      const sitesQuery = query(
-        collection(db, 'publishedSites'),
-        where("active", "==", true)
-      );
-      const snapshot = await getDocs(sitesQuery);
-      const sites = [];
-      snapshot.forEach(doc => {
-        sites.push({ id: doc.id, ...doc.data() });
-      });
-      return sites.length > 0 ? sites[Math.floor(Math.random() * sites.length)] : null;
+      try {
+        const sitesQuery = query(
+          collection(db, 'publishedSites'),
+          where("active", "==", true)
+        );
+        const snapshot = await getDocs(sitesQuery);
+        const sites = [];
+        snapshot.forEach(doc => {
+          sites.push({ id: doc.id, ...doc.data() });
+        });
+        return sites.length > 0 ? sites[Math.floor(Math.random() * sites.length)] : null;
+      } catch (error) {
+        console.error("Error al buscar sitios:", error);
+        return null;
+      }
     };
 
     // Función principal modificada
@@ -81,9 +185,10 @@
         if (!formattedUrl) throw new Error("URL no válida");
 
         siteTitleEl.textContent = siteData.title || "Sitio sin título";
-        previewIframe.src = formattedUrl; // Cargar la URL en el iframe
+        previewIframe.src = formattedUrl;
+        previewContainer.classList.remove('hidden');
 
-        // Verificar estado activo y puntos (igual que antes)
+        // Verificar estado activo y puntos
         if (!siteData.active) throw new Error("El sitio está inactivo");
         
         const ownerRef = doc(db, 'users', siteData.owner);
@@ -109,6 +214,11 @@
           })
         ]);
 
+        // Mostrar estado exitoso
+        statusEl.textContent = "Vista previa activa - Gana puntos";
+        statusEl.classList.remove('error');
+        loginBtn.classList.add('hidden');
+
         // Contador para rotación
         countdownTimer = setInterval(async () => {
           countdownSeconds--;
@@ -119,10 +229,11 @@
             clearInterval(countdownTimer);
             const nextSite = await getRandomSite();
             if (nextSite) {
-              // Recargar la página con un nuevo siteId
               window.location.href = `visor.html?siteId=${nextSite.id}`;
             } else {
-              statusEl.textContent = "No hay más sitios disponibles";
+              statusEl.textContent = "✅ No hay más sitios disponibles";
+              countdownEl.style.display = "none";
+              progressBar.style.display = "none";
             }
           }
         }, 1000);
@@ -130,32 +241,69 @@
       } catch (error) {
         console.error("Error:", error);
         statusEl.textContent = `⚠️ ${error.message}`;
+        statusEl.classList.add('error');
         previewContainer.classList.add('hidden');
+        countdownEl.style.display = "none";
+        progressBar.style.display = "none";
+        loginBtn.classList.remove('hidden');
       }
     };
 
-    // Modifica la función de autenticación para usar showPreviewAndRotate
+    // Botón de inicio de sesión
+    loginBtn.addEventListener('click', () => {
+      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+    });
+
+    // Botón de cancelar
+    cancelBtn.addEventListener('click', () => {
+      clearInterval(countdownTimer);
+      window.location.href = "home.html";
+    });
+
+    // Verificación de autenticación mejorada
     const checkAuthWithRetry = (retries = 3, delay = 1000) => {
-      onAuthStateChanged(auth, (user) => {
+      onAuthStateChanged(auth, async (user) => {
         if (user) {
-          showPreviewAndRotate(user); // Cambia verifyAndRedirect por esta función
-          loginBtn.style.display = "none";
-          statusEl.classList.remove('error');
-          statusEl.textContent = "Vista previa activa - Gana puntos";
+          console.log("Usuario autenticado:", user.uid);
+          try {
+            // Verificar si el token es reciente
+            const idTokenResult = await user.getIdTokenResult(true);
+            const authTime = new Date(idTokenResult.claims.auth_time * 1000);
+            const minutesSinceLogin = (new Date() - authTime) / (1000 * 60);
+            
+            if (minutesSinceLogin > 5) {
+              // Token puede estar obsoleto, forzar refresco
+              await auth.currentUser.getIdToken(true);
+            }
+            
+            showPreviewAndRotate(user);
+          } catch (authError) {
+            console.error("Error de autenticación:", authError);
+            if (retries > 0) {
+              setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
+            } else {
+              statusEl.textContent = "⚠️ Error de sesión. Vuelve a iniciar sesión";
+              loginBtn.classList.remove('hidden');
+            }
+          }
         } else if (retries > 0) {
           setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
         } else {
-          loginBtn.style.display = "block";
+          loginBtn.classList.remove('hidden');
         }
       });
     };
 
-    // Inicialización (igual que antes)
+    // Inicialización
     if (siteId) {
       checkAuthWithRetry();
     } else {
       statusEl.textContent = "Error: No se especificó sitio";
+      statusEl.classList.add('error');
       previewContainer.classList.add('hidden');
+      countdownEl.style.display = "none";
+      progressBar.style.display = "none";
+      loginBtn.classList.add('hidden');
     }
   </script>
 </body>
