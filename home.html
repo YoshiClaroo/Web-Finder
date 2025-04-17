@@ -225,28 +225,31 @@
 
     // Botón Ganar Puntos
     // Reemplaza SOLO el evento del botón "Ganar Puntos" con este código:
-document.getElementById('earn-points-btn').addEventListener('click', () => {
-  loadRandomSite(); // Carga un sitio aleatorio inmediatamente
-});
-
-    const q = query(
-      collection(db, "publishedSites"), 
-      where("active", "==", true),
-      where("owner", "!=", user.uid)
-    );
-    
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) throw new Error("No hay sitios disponibles");
-    
-    // Aleatoriedad mejorada
-    const sites = snapshot.docs;
-    const shuffled = [...sites].sort(() => 0.5 - Math.random());
-    const randomSite = shuffled[0];
-    
-    window.location.href = `viewer.html?siteId=${randomSite.id}&t=${Date.now()}`;
-  } catch (error) {
-    alert(error.message);
+// Reemplaza solo el evento del botón "Ganar Puntos":
+document.getElementById('earn-points-btn').addEventListener('click', async () => {
+  const user = auth.currentUser;
+  if (!user) {
+    alert("Debes iniciar sesión");
+    return;
   }
+
+  const q = query(
+    collection(db, "publishedSites"),
+    where("active", "==", true),
+    where("owner", "!=", user.uid)
+  );
+  
+  const snapshot = await getDocs(q);
+  const sites = snapshot.docs;
+  
+  if (sites.length === 0) {
+    alert("No hay sitios disponibles para ver");
+    return;
+  }
+
+  // Selección aleatoria mejorada
+  const randomSite = sites[Math.floor(Math.random() * sites.length)];
+  window.location.href = `viewer.html?siteId=${randomSite.id}&r=${Math.random()}`;
 });
 
     // Botón Mis Sitios
