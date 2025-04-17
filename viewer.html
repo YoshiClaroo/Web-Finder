@@ -149,6 +149,7 @@
     let countdownTimer;
     let countdownSeconds = SESSION_DURATION;
 
+    // Elementos del DOM
     const elements = {
       title: document.getElementById('site-title'),
       countdown: document.getElementById('countdown'),
@@ -186,11 +187,13 @@
         const siteRef = doc(db, 'publishedSites', siteId);
         const userRef = doc(db, 'users', user.uid);
 
+        // 1. +1 visita al sitio
         batch.update(siteRef, {
           views: increment(1),
           lastVisited: serverTimestamp()
         });
 
+        // 2. -5 puntos al visitante
         batch.update(userRef, {
           points: increment(-5),
           lastVisit: serverTimestamp()
@@ -198,6 +201,7 @@
 
         await batch.commit();
         elements.pointsInfo.textContent = "✓ -5 puntos | +1 visita";
+        
       } catch (error) {
         console.error("Error al registrar:", error);
         elements.pointsInfo.textContent = "⚠️ Error al registrar";
@@ -205,8 +209,7 @@
     };
 
     const loadSite = async (user) => {
-      const params = new URLSearchParams(window.location.search);
-      const siteId = params.get('siteId');
+      const siteId = new URLSearchParams(window.location.search).get('siteId');
       
       if (!siteId) {
         showError("No se especificó sitio");
@@ -225,20 +228,21 @@
         }
 
         const siteData = siteDoc.data();
+        // ▼▼▼ Mostrar título inmediatamente ▼▼▼
         elements.title.textContent = siteData.title || "Sitio sin título";
-        
-        const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
-        elements.preview.src = url;
+        elements.preview.src = siteData.url.startsWith('http') 
+          ? siteData.url 
+          : `https://${siteData.url}`;
 
-        if (user && user.uid !== siteData.owner && userDoc.data().points >= 5) {
+        // Validar y registrar visita
+        if (user.uid !== siteData.owner && userDoc.data().points >= 5) {
           await registerVisit(user, siteId);
         } else if (user) {
           elements.pointsInfo.textContent = "🔒 Eres el dueño (no se descuentan puntos)";
         }
 
+        // Iniciar temporizador
         countdownSeconds = SESSION_DURATION;
-        elements.countdown.textContent = countdownSeconds;
-        elements.progress.style.background = "linear-gradient(90deg, #0ff 0%, #f0f 0%)";
         countdownTimer = setInterval(updateTimer, 1000);
 
       } catch (error) {
@@ -247,14 +251,23 @@
       }
     };
 
-    elements.cancelBtn.addEventListener('click', () => {
+    // ▼▼▼ Botón cancelar corregido ▼▼▼
+    elements.cancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       clearInterval(countdownTimer);
       window.location.href = "home.html";
     });
 
+    // Iniciar
     onAuthStateChanged(auth, (user) => {
-      if (!user) window.location.href = "login.html";
-      else loadSite(user).catch(e => console.error("Error inicial:", e));
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        loadSite(user).catch(e => {
+          console.error("Error inicial:", e);
+          showError("Error al iniciar");
+        });
+      }
     });
   </script>
 </body>
