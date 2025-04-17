@@ -12,12 +12,14 @@
       margin: 0;
       padding: 0;
     }
+    
     .top-panel {
       width: 100%;
       padding: 1rem;
       background: #111;
       box-shadow: 0 2px 10px rgba(0, 255, 255, 0.1);
     }
+    
     .header {
       display: flex;
       justify-content: space-between;
@@ -25,11 +27,13 @@
       max-width: 1200px;
       margin: 0 auto;
     }
+    
     h2 {
       color: #0ff;
       margin: 0;
       font-size: 1.2rem;
     }
+    
     #countdown {
       font-size: 1.8rem;
       background: linear-gradient(135deg, #0ff, #f0f);
@@ -40,12 +44,14 @@
       min-width: 50px;
       text-align: right;
     }
+    
     .progress-separator {
       width: 100%;
       height: 12px;
       background: linear-gradient(90deg, #0ff, #f0f);
       margin: 0;
     }
+    
     .info-panel {
       max-width: 1200px;
       margin: 0.5rem auto;
@@ -54,6 +60,7 @@
       justify-content: space-between;
       font-size: 0.9rem;
     }
+    
     #site-title {
       color: #0ff;
       font-weight: bold;
@@ -62,25 +69,30 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    
     #points-earned {
       color: #0f0;
       font-weight: bold;
     }
+    
     .error {
       color: #f55;
       font-size: 0.8rem;
     }
+    
     #preview-container {
       width: 100%;
       height: 550px;
       background: #000;
       border-top: 1px solid rgba(0, 255, 255, 0.2);
     }
+    
     #site-preview {
       width: 100%;
       height: 100%;
       border: none;
     }
+    
     #cancel-btn {
       position: fixed;
       bottom: 20px;
@@ -129,11 +141,11 @@
       updateDoc, 
       increment, 
       serverTimestamp, 
-      onAuthStateChanged
+      onAuthStateChanged,
+      writeBatch
     } from './firebase.js';
 
     const SESSION_DURATION = 30;
-    const POINTS_PER_VIEW = 5;
     let countdownTimer;
     let countdownSeconds = SESSION_DURATION;
 
@@ -168,6 +180,30 @@
       }
     };
 
+    const registerVisit = async (user, siteId) => {
+      try {
+        const batch = writeBatch(db);
+        const siteRef = doc(db, 'publishedSites', siteId);
+        const userRef = doc(db, 'users', user.uid);
+
+        batch.update(siteRef, {
+          views: increment(1),
+          lastVisited: serverTimestamp()
+        });
+
+        batch.update(userRef, {
+          points: increment(-5),
+          lastVisit: serverTimestamp()
+        });
+
+        await batch.commit();
+        elements.pointsInfo.textContent = "✓ -5 puntos | +1 visita";
+      } catch (error) {
+        console.error("Error al registrar:", error);
+        elements.pointsInfo.textContent = "⚠️ Error al registrar";
+      }
+    };
+
     const loadSite = async (user) => {
       const params = new URLSearchParams(window.location.search);
       const siteId = params.get('siteId');
@@ -178,9 +214,11 @@
       }
 
       try {
-        const siteRef = doc(db, 'publishedSites', siteId);
-        const siteDoc = await getDoc(siteRef);
-        
+        const [siteDoc, userDoc] = await Promise.all([
+          getDoc(doc(db, 'publishedSites', siteId)),
+          getDoc(doc(db, 'users', user.uid))
+        ]);
+
         if (!siteDoc.exists()) {
           showError("Sitio no encontrado");
           return;
@@ -192,39 +230,11 @@
         const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
         elements.preview.src = url;
 
-        // ▼▼▼ Zona crítica corregida ▼▼▼
-        if (user && user.uid !== siteData.owner) {
-  try {
-    // Debug: Verificar datos antes de actualizar
-    console.log("Datos previos:", {
-      views: siteData.views,
-      userPoints: (await getDoc(doc(db, "users", user.uid)).data().points
-    });
-
-    // Actualización atómica
-    const batch = writeBatch(db);
-    batch.update(siteRef, {
-      views: increment(1),
-      lastVisited: serverTimestamp()
-    });
-    batch.update(doc(db, "users", user.uid), {
-      points: increment(-5),
-      lastVisit: serverTimestamp()
-    });
-    
-    await batch.commit();
-    elements.pointsInfo.textContent = "✓ -5 pts | +1 visita";
-    
-  } catch (error) {
-    console.error("Error completo:", { 
-      message: error.message, 
-      code: error.code,
-      stack: error.stack
-    });
-    elements.pointsInfo.textContent = "⚠️ Revise consola (F12)";
-  }
-}
-        // ▲▲▲ Fin de zona crítica ▲▲▲
+        if (user && user.uid !== siteData.owner && userDoc.data().points >= 5) {
+          await registerVisit(user, siteId);
+        } else if (user) {
+          elements.pointsInfo.textContent = "🔒 Eres el dueño (no se descuentan puntos)";
+        }
 
         countdownSeconds = SESSION_DURATION;
         elements.countdown.textContent = countdownSeconds;
