@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🌐 WebFinder | Visor</title>
+  <title>🌐 WebFinder | Visor Seguro</title>
   <style>
     body {
       background: #000;
@@ -89,6 +89,9 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    .error {
+      color: #f55;
+    }
   </style>
 </head>
 <body>
@@ -96,7 +99,8 @@
     <h2>🌐 Vista Previa</h2>
     <div id="site-info">
       <p>Estás viendo: <span id="site-title">Cargando...</span></p>
-      <p id="points-earned">+5 puntos</p>
+      <p id="points-earned"></p>
+      <p id="error-message" class="error"></p>
     </div>
     
     <div id="countdown">30</div>
@@ -124,7 +128,7 @@
     } from './firebase.js';
 
     // Configuración
-    const SESSION_DURATION = 30; // segundos
+    const SESSION_DURATION = 30;
     const POINTS_PER_VIEW = 5;
     let countdownTimer;
     let countdownSeconds = SESSION_DURATION;
@@ -136,10 +140,16 @@
       progress: document.getElementById('progress-bar'),
       preview: document.getElementById('site-preview'),
       pointsInfo: document.getElementById('points-earned'),
+      errorMsg: document.getElementById('error-message'),
       cancelBtn: document.getElementById('cancel-btn')
     };
 
-    // Función para actualizar el temporizador
+    // Función para mostrar errores
+    const showError = (message) => {
+      elements.errorMsg.textContent = message;
+    };
+
+    // Temporizador
     const updateTimer = () => {
       countdownSeconds--;
       elements.countdown.textContent = countdownSeconds;
@@ -147,72 +157,79 @@
       
       if (countdownSeconds <= 0) {
         clearInterval(countdownTimer);
-        // Recargar la misma página para continuar
         window.location.reload();
       }
     };
 
-    // Función principal simplificada
+    // Función principal mejorada
     const loadSite = async (user) => {
       const params = new URLSearchParams(window.location.search);
       const siteId = params.get('siteId');
       
       if (!siteId) {
-        elements.title.textContent = "No se especificó sitio";
+        showError("No se especificó sitio");
         return;
       }
 
       try {
-        // Obtener datos del sitio
+        // 1. Obtener datos del sitio
         const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
         if (!siteDoc.exists()) {
-          elements.title.textContent = "Sitio no encontrado";
+          showError("Sitio no encontrado");
           return;
         }
 
         const siteData = siteDoc.data();
         elements.title.textContent = siteData.title || "Sitio sin título";
-        elements.preview.src = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
+        
+        // 2. Cargar iframe (con validación básica)
+        const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
+        elements.preview.src = url;
 
-        // Solo transferir puntos si el usuario no es el dueño
+        // 3. Sistema de puntos (solo si está autenticado y no es dueño)
         if (user && user.uid !== siteData.owner) {
-          await Promise.all([
-            updateDoc(doc(db, 'users', user.uid), {
+          try {
+            await updateDoc(doc(db, 'users', user.uid), {
               points: increment(POINTS_PER_VIEW),
               lastVisit: serverTimestamp()
-            }),
-            updateDoc(doc(db, 'publishedSites', siteId), {
+            });
+            
+            await updateDoc(doc(db, 'publishedSites', siteId), {
               views: increment(1),
               lastVisited: serverTimestamp()
-            })
-          ]);
-          elements.pointsInfo.textContent = `+${POINTS_PER_VIEW} puntos ganados!`;
-        } else {
+            });
+            
+            elements.pointsInfo.textContent = `+${POINTS_PER_VIEW} puntos ganados!`;
+          } catch (pointsError) {
+            console.warn("Error en puntos:", pointsError);
+            elements.pointsInfo.textContent = "Puntos no registrados";
+          }
+        } else if (user) {
           elements.pointsInfo.textContent = "Visualizando tu propio sitio";
         }
 
-        // Iniciar temporizador
+        // 4. Iniciar temporizador
         countdownSeconds = SESSION_DURATION;
         elements.countdown.textContent = countdownSeconds;
         elements.progress.style.width = "0%";
         countdownTimer = setInterval(updateTimer, 1000);
 
       } catch (error) {
-        console.error("Error simplificado:", error);
-        elements.title.textContent = "Error al cargar";
+        console.error("Error crítico:", error);
+        showError("Error al cargar el sitio");
         elements.pointsInfo.textContent = "Intenta recargar la página";
       }
     };
 
-    // Botón de cancelar
+    // Eventos
     elements.cancelBtn.addEventListener('click', () => {
       clearInterval(countdownTimer);
       window.location.href = "home.html";
     });
 
-    // Inicialización
+    // Iniciar
     onAuthStateChanged(auth, (user) => {
-      loadSite(user);
+      loadSite(user).catch(e => console.error("Error inicial:", e));
     });
   </script>
 </body>
