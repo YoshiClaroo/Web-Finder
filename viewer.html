@@ -80,10 +80,9 @@
       font-size: 0.8rem;
     }
     
-    /* ▲▲▲ CAMBIO PRINCIPAL ▲▲▲ */
     #preview-container {
       width: 100%;
-      height: 550px; /* ¡Aquí está el ajuste! */
+      height: 550px;
       background: #000;
       border-top: 1px solid rgba(0, 255, 255, 0.2);
     }
@@ -205,11 +204,19 @@
 
         if (user && user.uid !== siteData.owner) {
           try {
+            // 1. Actualizar puntos del visitante
             await updateDoc(doc(db, 'users', user.uid), {
               points: increment(POINTS_PER_VIEW),
               lastVisit: serverTimestamp()
             });
             
+            // 2. Actualizar puntos del dueño (restar)
+            await updateDoc(doc(db, 'users', siteData.owner), {
+              points: increment(-POINTS_PER_VIEW),
+              lastUpdated: serverTimestamp()
+            });
+            
+            // 3. Actualizar vistas del sitio
             await updateDoc(doc(db, 'publishedSites', siteId), {
               views: increment(1),
               lastVisited: serverTimestamp()
@@ -217,7 +224,8 @@
             
             elements.pointsInfo.textContent = `+${POINTS_PER_VIEW}pts`;
           } catch (pointsError) {
-            console.warn("Error en puntos:", pointsError);
+            console.error("Error en puntos:", pointsError);
+            showError("Error al actualizar puntos");
             elements.pointsInfo.textContent = "";
           }
         } else if (user) {
