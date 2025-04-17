@@ -133,110 +133,153 @@
   <button id="cancel-btn">✕ Cancelar</button>
 
   <script type="module">
-    import { 
-      auth, 
-      db, 
-      doc, 
-      getDoc, 
-      updateDoc, 
-      increment, 
-      serverTimestamp, 
-      onAuthStateChanged,
-      writeBatch,
-      collection,
-      query,
-      where,
-      getDocs
-    } from './firebase.js';
+  import { 
+    auth, 
+    db, 
+    doc, 
+    getDoc, 
+    updateDoc, 
+    increment, 
+    serverTimestamp, 
+    onAuthStateChanged,
+    writeBatch,
+    collection,
+    query,
+    where,
+    getDocs
+  } from './firebase.js';
 
-    const SESSION_DURATION = 30;
-    let countdownTimer;
-    let countdownSeconds = SESSION_DURATION;
+  const SESSION_DURATION = 30;
+  let countdownTimer;
+  let countdownSeconds = SESSION_DURATION;
 
-    // Función para cargar sitio aleatorio
-    const loadRandomSite = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
+  // Debug: Mostrar datos en consola
+  console.log("Iniciando viewer...");
 
-      const q = query(
-        collection(db, "publishedSites"),
-        where("active", "==", true),
-        where("owner", "!=", user.uid)
-      );
+  const loadSite = async (user) => {
+    const siteId = new URLSearchParams(window.location.search).get('siteId');
+    console.log("ID del sitio recibido:", siteId);
+
+    if (!siteId) {
+      showError("No se especificó sitio");
+      return;
+    }
+
+    try {
+      // 1. Obtener documento del sitio
+      const siteRef = doc(db, 'publishedSites', siteId);
+      const siteDoc = await getDoc(siteRef);
       
-      const snapshot = await getDocs(q);
-      const sites = snapshot.docs;
-      
-      if (sites.length > 0) {
-        const randomSite = sites[Math.floor(Math.random() * sites.length)];
-        window.location.href = `viewer.html?siteId=${randomSite.id}&t=${Date.now()}`;
-      } else {
-        alert("No hay más sitios disponibles");
-        window.location.href = "home.html";
+      console.log("Datos del sitio:", siteDoc.data());
+
+      if (!siteDoc.exists()) {
+        showError("Sitio no encontrado en la base de datos");
+        return;
       }
-    };
 
-    // Función principal
-    const loadSite = async (user) => {
-      const siteId = new URLSearchParams(window.location.search).get('siteId');
+      const siteData = siteDoc.data();
       
-      try {
-        // 1. Cargar datos del sitio y usuario
-        const [siteDoc, userDoc] = await Promise.all([
-          getDoc(doc(db, 'publishedSites', siteId)),
-          getDoc(doc(db, 'users', user.uid))
-        ]);
+      // 2. Actualizar UI
+      document.getElementById('site-title').textContent = siteData.title || "Sitio sin título";
+      document.getElementById('site-preview').src = siteData.url;
+      document.getElementById('countdown').textContent = SESSION_DURATION;
 
-        // 2. Mostrar contenido
-        document.getElementById('site-title').textContent = siteDoc.data().title || "Sitio sin título";
-        document.getElementById('site-preview').src = siteDoc.data().url.startsWith('http') 
-          ? siteDoc.data().url 
-          : `https://${siteDoc.data().url}`;
-
-        // 3. Registrar visita y descontar puntos (si no es el dueño)
-        if (user.uid !== siteDoc.data().owner && userDoc.data().points >= 5) {
-          const batch = writeBatch(db);
-          batch.update(doc(db, 'publishedSites', siteId), {
-            views: increment(1),
-            lastVisited: serverTimestamp()
-          });
-          batch.update(doc(db, 'users', user.uid), {
-            points: increment(-5),
-            lastVisit: serverTimestamp()
-          });
-          await batch.commit();
-          document.getElementById('points-earned').textContent = "✓ -5pts | +1 visita";
-        }
-
-        // 4. Temporizador para rotación automática
-        countdownSeconds = SESSION_DURATION;
-        countdownTimer = setInterval(() => {
-          countdownSeconds--;
-          document.getElementById('countdown').textContent = countdownSeconds;
-          
-          if (countdownSeconds <= 0) {
-            clearInterval(countdownTimer);
-            loadRandomSite(); // Carga nuevo sitio al terminar
-          }
-        }, 1000);
-
-      } catch (error) {
-        console.error("Error:", error);
-        document.getElementById('error-message').textContent = "Error al cargar el sitio";
+      // 3. Verificar si es el dueño
+      if (user.uid === siteData.owner) {
+        document.getElementById('points-earned').textContent = "Eres el dueño";
+        startTimer();
+        return;
       }
-    };
 
-    // Iniciar
-    onAuthStateChanged(auth, (user) => {
-      if (!user) window.location.href = "login.html";
-      else loadSite(user);
-    });
+      // 4. Verificar puntos del usuario
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userPoints = userDoc.data()?.points || 0;
+      
+      if (userPoints < 5) {
+        showError("Necesitas al menos 5 puntos");
+        return;
+      }
 
-    // Botón cancelar
-    document.getElementById('cancel-btn').addEventListener('click', () => {
-      clearInterval(countdownTimer);
+      // 5. Registrar visita
+      const batch = writeBatch(db);
+      batch.update(siteRef, {
+        views: increment(1),
+        lastVisited: serverTimestamp()
+      });
+      batch.update(doc(db, 'users', user.uid), {
+        points: increment(-5),
+        lastVisit: serverTimestamp()
+      });
+      
+      await batch.commit();
+      document.getElementById('points-earned').textContent = "✓ -5pts | +1 visita";
+      startTimer();
+
+    } catch (error) {
+      console.error("Error completo:", error);
+      showError(`Error: ${error.message}`);
+    }
+  };
+
+  function startTimer() {
+    countdownSeconds = SESSION_DURATION;
+    countdownTimer = setInterval(() => {
+      countdownSeconds--;
+      document.getElementById('countdown').textContent = countdownSeconds;
+      
+      if (countdownSeconds <= 0) {
+        clearInterval(countdownTimer);
+        loadRandomSite();
+      }
+    }, 1000);
+  }
+
+  async function loadRandomSite() {
+    console.log("Buscando nuevo sitio aleatorio...");
+    const user = auth.currentUser;
+    const q = query(
+      collection(db, "publishedSites"),
+      where("active", "==", true),
+      where("owner", "!=", user.uid)
+    );
+    
+    const snapshot = await getDocs(q);
+    console.log("Sitios encontrados:", snapshot.docs.length);
+    
+    if (snapshot.empty) {
+      alert("No hay más sitios disponibles");
       window.location.href = "home.html";
-    });
-  </script>
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * snapshot.docs.length);
+    const randomSite = snapshot.docs[randomIndex];
+    window.location.href = `viewer.html?siteId=${randomSite.id}&r=${Date.now()}`;
+  }
+
+  // Iniciar
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      window.location.href = "login.html";
+    } else {
+      console.log("Usuario autenticado:", user.uid);
+      loadSite(user).catch(e => {
+        console.error("Error en loadSite:", e);
+        showError("Error al cargar");
+      });
+    }
+  });
+
+  // Botón cancelar
+  document.getElementById('cancel-btn').addEventListener('click', () => {
+    clearInterval(countdownTimer);
+    window.location.href = "home.html";
+  });
+
+  function showError(message) {
+    console.error("Mostrando error:", message);
+    document.getElementById('error-message').textContent = message;
+  }
+</script>
 </body>
 </html>
