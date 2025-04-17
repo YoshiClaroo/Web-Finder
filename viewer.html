@@ -20,7 +20,7 @@
     .container {
       background: #111;
       width: 100%;
-      max-width: 400px;
+      max-width: 800px;
       padding: 2rem;
       border-radius: 12px;
       border: 1px solid rgba(0, 255, 255, 0.2);
@@ -68,6 +68,23 @@
       color: #0ff;
       font-weight: bold;
     }
+    #preview-container {
+      width: 100%;
+      height: 60vh;
+      margin: 1rem 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 255, 255, 0.3);
+    }
+    #site-preview {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #000;
+    }
+    .hidden {
+      display: none;
+    }
     #cancel-btn {
       margin-top: 1rem;
       background: #333;
@@ -91,22 +108,28 @@
 </head>
 <body>
   <div class="container">
-    <h2>⏳ Redireccionando...</h2>
+    <h2>⏳ Vista Previa</h2>
     <div id="site-info">
-      <p>Estás viendo: <span id="site-title">futbol para todos</span></p>
+      <p>Estás viendo: <span id="site-title">Cargando...</span></p>
     </div>
     <div id="countdown">30</div>
     <div class="progress-bar">
       <div class="progress" id="progress-bar"></div>
     </div>
-    <p id="status-message" class="error">⚠️ Debes iniciar sesión</p>
-    <button id="login-redirect-btn">Iniciar sesión</button>
+    
+    <!-- Iframe para mostrar el sitio -->
+    <div id="preview-container" class="hidden">
+      <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+    </div>
+    
+    <p id="status-message">Iniciando visor...</p>
+    <button id="login-redirect-btn" class="hidden">Iniciar sesión</button>
     <button id="cancel-btn">Cancelar</button>
   </div>
 
   <script src="firebase.js" type="module"></script>
   <script type="module">
-    import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp, onAuthStateChanged } from './firebase.js';
+    import { auth, db, doc, getDoc, updateDoc, increment, serverTimestamp, onAuthStateChanged, collection, query, where, getDocs } from './firebase.js';
 
     // Elementos del DOM
     const statusEl = document.getElementById('status-message');
@@ -115,6 +138,8 @@
     const progressBar = document.getElementById('progress-bar');
     const cancelBtn = document.getElementById('cancel-btn');
     const loginBtn = document.getElementById('login-redirect-btn');
+    const previewContainer = document.getElementById('preview-container');
+    const previewIframe = document.getElementById('site-preview');
 
     // Obtener ID del sitio desde la URL
     const siteId = new URLSearchParams(window.location.search).get('siteId');
@@ -127,8 +152,27 @@
       return url.startsWith('http') ? url : `https://${url}`;
     };
 
-    // Función principal de verificación
-    const verifyAndRedirect = async (user) => {
+    // Función para obtener un sitio aleatorio activo
+    const getRandomActiveSite = async () => {
+      try {
+        const q = query(
+          collection(db, 'publishedSites'),
+          where("active", "==", true)
+        );
+        const snapshot = await getDocs(q);
+        const sites = [];
+        snapshot.forEach(doc => {
+          sites.push({ id: doc.id, ...doc.data() });
+        });
+        return sites.length > 0 ? sites[Math.floor(Math.random() * sites.length)] : null;
+      } catch (error) {
+        console.error("Error al buscar sitios:", error);
+        return null;
+      }
+    };
+
+    // Función principal modificada (con iframe)
+    const showSiteInIframe = async (user) => {
       try {
         if (!siteId) throw new Error("No se especificó sitio");
         if (!user) throw new Error("Debes iniciar sesión");
@@ -141,6 +185,8 @@
         if (!formattedUrl) throw new Error("URL no válida");
 
         siteTitleEl.textContent = siteData.title || "Sitio sin título";
+        previewIframe.src = formattedUrl;
+        previewContainer.classList.remove('hidden');
 
         // Verificar estado activo y puntos
         if (!siteData.active) throw new Error("El sitio está inactivo");
@@ -168,8 +214,22 @@
           })
         ]);
 
-        // Redirección final
-        window.location.href = formattedUrl;
+        // Configurar temporizador para rotación automática
+        countdownTimer = setInterval(async () => {
+          countdownSeconds--;
+          countdownEl.textContent = countdownSeconds;
+          progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
+          
+          if (countdownSeconds <= 0) {
+            clearInterval(countdownTimer);
+            const nextSite = await getRandomActiveSite();
+            if (nextSite) {
+              window.location.href = `viewer.html?siteId=${nextSite.id}`;
+            } else {
+              statusEl.textContent = "No hay más sitios disponibles";
+            }
+          }
+        }, 1000);
 
       } catch (error) {
         console.error("Error:", error);
@@ -196,24 +256,10 @@
       onAuthStateChanged(auth, (user) => {
         if (user) {
           console.log("Usuario autenticado:", user.uid);
-          
-          // Iniciar contador
-          countdownTimer = setInterval(() => {
-            countdownSeconds--;
-            countdownEl.textContent = countdownSeconds;
-            progressBar.style.width = `${(30 - countdownSeconds) * (100 / 30)}%`;
-            
-            if (countdownSeconds <= 0) {
-              clearInterval(countdownTimer);
-              verifyAndRedirect(user);
-            }
-          }, 1000);
-          
-          // Ocultar botón de login
           loginBtn.style.display = "none";
           statusEl.classList.remove('error');
-          statusEl.textContent = "No cierres esta pestaña para ganar puntos";
-          
+          statusEl.textContent = "Vista previa activa - Gana puntos";
+          showSiteInIframe(user);
         } else if (retries > 0) {
           console.log(`Intento de autenticación fallido. Reintentos restantes: ${retries}`);
           setTimeout(() => checkAuthWithRetry(retries - 1, delay), delay);
