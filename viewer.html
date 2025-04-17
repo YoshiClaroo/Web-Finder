@@ -30,6 +30,36 @@
       color: #0ff;
       margin-bottom: 1.5rem;
     }
+    #countdown {
+      font-size: 3.5rem;
+      background: linear-gradient(135deg, #0ff, #f0f);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: bold;
+      margin: 1rem 0;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      margin: 1.5rem 0;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      background: linear-gradient(90deg, #0ff, #f0f);
+      width: 0%;
+      transition: width 1s linear;
+    }
+    #status-message {
+      margin-top: 1rem;
+      color: #0ff;
+    }
+    .error {
+      color: #f55 !important;
+    }
     #site-info {
       margin-bottom: 1rem;
       color: #aaa;
@@ -38,10 +68,9 @@
       color: #0ff;
       font-weight: bold;
     }
-    /* Estilos para el iframe */
     #preview-container {
       width: 100%;
-      height: 70vh;
+      height: 60vh;
       margin: 1rem 0;
       border-radius: 8px;
       overflow: hidden;
@@ -53,16 +82,27 @@
       border: none;
       background: #000;
     }
+    .hidden {
+      display: none;
+    }
     .buttons-container {
       display: flex;
       gap: 10px;
       justify-content: center;
       margin-top: 1rem;
     }
-    #next-btn {
+    #login-redirect-btn {
       background: linear-gradient(135deg, #0ff, #f0f);
       color: black;
       font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #cancel-btn {
+      background: #333;
+      color: white;
       border: none;
       padding: 10px 20px;
       border-radius: 5px;
@@ -72,18 +112,25 @@
 </head>
 <body>
   <div class="container">
-    <h2>🌐 Vista Previa</h2>
+    <h2>⏳ Vista Previa Activa</h2>
     <div id="site-info">
-      <p>Estás viendo: <span id="site-title">Cargando sitio...</span></p>
+      <p>Estás viendo: <span id="site-title">Cargando...</span></p>
     </div>
     
-    <!-- Iframe para la vista previa -->
-    <div id="preview-container">
+    <div id="countdown">30</div>
+    <div class="progress-bar">
+      <div class="progress" id="progress-bar"></div>
+    </div>
+    
+    <div id="preview-container" class="hidden">
       <iframe id="site-preview" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
     </div>
     
+    <p id="status-message">Iniciando sistema...</p>
+    
     <div class="buttons-container">
-      <button id="next-btn">Siguiente Sitio</button>
+      <button id="login-redirect-btn" class="hidden">Iniciar sesión</button>
+      <button id="cancel-btn">Cancelar</button>
     </div>
   </div>
 
@@ -93,44 +140,54 @@
       db, 
       doc, 
       getDoc, 
+      updateDoc, 
+      increment, 
+      serverTimestamp, 
+      onAuthStateChanged,
       collection,
       query,
       where,
-      getDocs,
-      onAuthStateChanged
+      getDocs
     } from './firebase.js';
+
+    // Configuración
+    const SESSION_DURATION = 30; // segundos
+    const POINTS_PER_VIEW = 5;
 
     // Elementos del DOM
     const elements = {
+      status: document.getElementById('status-message'),
       title: document.getElementById('site-title'),
+      countdown: document.getElementById('countdown'),
+      progress: document.getElementById('progress-bar'),
+      cancelBtn: document.getElementById('cancel-btn'),
+      loginBtn: document.getElementById('login-redirect-btn'),
       preview: document.getElementById('site-preview'),
-      nextBtn: document.getElementById('next-btn')
+      container: document.getElementById('preview-container')
     };
 
-    // Cargar y mostrar sitio actual
-    const loadSite = async (siteId) => {
-      try {
-        const siteRef = doc(db, 'publishedSites', siteId);
-        const siteDoc = await getDoc(siteRef);
-        
-        if (siteDoc.exists()) {
-          const siteData = siteDoc.data();
-          elements.title.textContent = siteData.title || "Sitio sin título";
-          
-          // Formatear URL y cargar en iframe
-          const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
-          elements.preview.src = url;
-        } else {
-          elements.title.textContent = "Sitio no encontrado";
-        }
-      } catch (error) {
-        console.error("Error al cargar sitio:", error);
-        elements.title.textContent = "Error al cargar";
-      }
+    // Estado global
+    let currentSession = {
+      timer: null,
+      secondsLeft: SESSION_DURATION,
+      currentSite: null
     };
 
-    // Obtener un sitio aleatorio activo
-    const getRandomSite = async () => {
+    // Funciones auxiliares
+    const formatUrl = (url) => url?.startsWith('http') ? url : `https://${url}`;
+    
+    const showError = (message) => {
+      elements.status.textContent = `⚠️ ${message}`;
+      elements.status.classList.add('error');
+      elements.container.classList.add('hidden');
+    };
+
+    const updateTimerDisplay = () => {
+      elements.countdown.textContent = currentSession.secondsLeft;
+      elements.progress.style.width = `${100 - (currentSession.secondsLeft * (100 / SESSION_DURATION))}%`;
+    };
+
+    const getRandomActiveSite = async () => {
       try {
         const q = query(
           collection(db, 'publishedSites'),
@@ -145,35 +202,111 @@
       }
     };
 
-    // Cargar un nuevo sitio aleatorio
-    const loadRandomSite = async () => {
-      const site = await getRandomSite();
-      if (site) {
-        window.history.pushState({}, '', `?siteId=${site.id}`);
-        loadSite(site.id);
-      } else {
-        elements.title.textContent = "No hay sitios disponibles";
-        elements.preview.src = "about:blank";
+    const transferPoints = async (viewerId, ownerId, siteId) => {
+      try {
+        const ownerRef = doc(db, 'users', ownerId);
+        const ownerDoc = await getDoc(ownerRef);
+        const ownerPoints = ownerDoc.data()?.points || 0;
+
+        if (ownerPoints < POINTS_PER_VIEW) {
+          await updateDoc(doc(db, 'publishedSites', siteId), { active: false });
+          throw new Error("El dueño no tiene puntos suficientes");
+        }
+
+        const batchUpdates = [
+          updateDoc(ownerRef, {
+            points: increment(-POINTS_PER_VIEW),
+            lastTransaction: serverTimestamp()
+          }),
+          updateDoc(doc(db, 'users', viewerId), {
+            points: increment(POINTS_PER_VIEW),
+            lastVisit: serverTimestamp()
+          }),
+          updateDoc(doc(db, 'publishedSites', siteId), {
+            views: increment(1),
+            lastVisited: serverTimestamp()
+          })
+        ];
+
+        await Promise.all(batchUpdates);
+        return true;
+      } catch (error) {
+        console.error("Error en transferencia de puntos:", error);
+        throw error;
+      }
+    };
+
+    const startNewSession = async (user) => {
+      // Detener sesión anterior si existe
+      if (currentSession.timer) {
+        clearInterval(currentSession.timer);
+      }
+
+      try {
+        // Obtener nuevo sitio aleatorio
+        const site = await getRandomActiveSite();
+        if (!site) {
+          showError("No hay sitios disponibles");
+          return;
+        }
+
+        // Transferir puntos
+        await transferPoints(user.uid, site.owner, site.id);
+
+        // Configurar vista
+        currentSession.currentSite = site;
+        elements.title.textContent = site.title || "Sitio sin título";
+        elements.preview.src = formatUrl(site.url);
+        elements.container.classList.remove('hidden');
+        elements.status.textContent = `Vista activa - Ganando ${POINTS_PER_VIEW} puntos`;
+        elements.status.classList.remove('error');
+
+        // Iniciar temporizador
+        currentSession.secondsLeft = SESSION_DURATION;
+        updateTimerDisplay();
+        
+        currentSession.timer = setInterval(() => {
+          currentSession.secondsLeft--;
+          updateTimerDisplay();
+          
+          if (currentSession.secondsLeft <= 0) {
+            clearInterval(currentSession.timer);
+            startNewSession(user); // Rotar automáticamente
+          }
+        }, 1000);
+
+      } catch (error) {
+        showError(error.message);
+        // Reintentar después de 5 segundos
+        setTimeout(() => startNewSession(user), 5000);
       }
     };
 
     // Event listeners
-    elements.nextBtn.addEventListener('click', loadRandomSite);
+    elements.cancelBtn.addEventListener('click', () => {
+      clearInterval(currentSession.timer);
+      window.location.href = "home.html";
+    });
+
+    elements.loginBtn.addEventListener('click', () => {
+      window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
+    });
 
     // Inicialización
-    onAuthStateChanged(auth, async (user) => {
+    onAuthStateChanged(auth, (user) => {
       if (user) {
-        const params = new URLSearchParams(window.location.search);
-        const siteId = params.get('siteId');
-        
-        if (siteId) {
-          loadSite(siteId);
-        } else {
-          loadRandomSite();
-        }
+        elements.loginBtn.classList.add('hidden');
+        startNewSession(user);
       } else {
-        elements.title.textContent = "Inicia sesión para continuar";
-        elements.preview.src = "about:blank";
+        elements.loginBtn.classList.remove('hidden');
+        showError("Debes iniciar sesión");
+      }
+    });
+
+    // Manejar recarga cuando se cierra el iframe
+    window.addEventListener('beforeunload', () => {
+      if (currentSession.timer) {
+        clearInterval(currentSession.timer);
       }
     });
   </script>
