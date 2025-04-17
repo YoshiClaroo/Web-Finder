@@ -225,10 +225,9 @@
 
     // Botón Ganar Puntos
     // Reemplaza SOLO el evento del botón "Ganar Puntos" con este código:
-document.getElementById('earn-points-btn').addEventListener('click', async () => {
-  try {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Debes iniciar sesión");
+document.getElementById('earn-points-btn').addEventListener('click', () => {
+  loadRandomSite(); // Carga un sitio aleatorio inmediatamente
+});
 
     const q = query(
       collection(db, "publishedSites"), 
