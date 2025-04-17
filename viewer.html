@@ -139,20 +139,42 @@
   </div>
 
   <script type="module">
+    // Importaciones corregidas
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { 
-      auth, 
-      db, 
-      doc, 
-      getDoc, 
-      updateDoc, 
-      increment, 
-      serverTimestamp, 
+      getAuth, 
       onAuthStateChanged,
+      signInWithEmailAndPassword,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      updateDoc,
+      increment,
+      serverTimestamp,
       collection,
       query,
       where,
       getDocs
-    } from './firebase.js';
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Configuración de Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrvltDfr_3ioGeU63I_XnO-915yx7LiB0",
+      authDomain: "web-finder-7dbd5.firebaseapp.com",
+      projectId: "web-finder-7dbd5",
+      storageBucket: "web-finder-7dbd5.appspot.com",
+      messagingSenderId: "256985326029",
+      appId: "1:256985326029:web:b15eeaf841a399ae1fe484",
+      measurementId: "G-NVHD1F5RS6"
+    };
+
+    // Inicialización
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
     // Elementos del DOM
     const elements = {
@@ -173,12 +195,17 @@
     let countdownSeconds = 30;
 
     // Funciones auxiliares
-    const formatUrl = (url) => url?.startsWith('http') ? url : `https://${url}`;
+    const formatUrl = (url) => {
+      if (!url) return null;
+      return url.startsWith('http') ? url : `https://${url}`;
+    };
     
     const showError = (message) => {
       elements.status.textContent = `⚠️ ${message}`;
       elements.status.classList.add('error');
       elements.container.classList.add('hidden');
+      elements.countdown.style.display = "none";
+      elements.progress.style.display = "none";
     };
 
     const startRotationTimer = (userId) => {
@@ -205,10 +232,8 @@
 
     const getRandomActiveSite = async () => {
       try {
-        const q = query(
-          collection(db, 'publishedSites'),
-          where("active", "==", true)
-        );
+        const sitesRef = collection(db, 'publishedSites');
+        const q = query(sitesRef, where("active", "==", true));
         const snapshot = await getDocs(q);
         const sites = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return sites.length ? sites[Math.floor(Math.random() * sites.length)] : null;
@@ -218,14 +243,20 @@
       }
     };
 
-    // Función principal
+    // Función principal corregida
     const initializePreview = async (user) => {
       try {
         if (!siteId) throw new Error("No se especificó sitio");
         
-        const [siteDoc, userDoc] = await Promise.all([
-          getDoc(doc(db, 'publishedSites', siteId)),
-          getDoc(doc(user.uid))
+        // Referencias corregidas
+        const siteRef = doc(db, 'publishedSites', siteId);
+        const userRef = doc(db, 'users', user.uid);
+        const ownerRef = doc(db, 'users', (await getDoc(siteRef)).data().owner);
+        
+        const [siteDoc, userDoc, ownerDoc] = await Promise.all([
+          getDoc(siteRef),
+          getDoc(userRef),
+          getDoc(ownerRef)
         ]);
 
         if (!siteDoc.exists()) throw new Error("Sitio no encontrado");
@@ -235,17 +266,30 @@
         elements.preview.src = formatUrl(siteData.url);
         elements.container.classList.remove('hidden');
         elements.status.textContent = "Vista previa activa - Gana puntos";
+        elements.status.classList.remove('error');
         
-        // Actualizar puntos
-        await updateDoc(doc(db, 'users', user.uid), {
-          points: increment(5),
-          lastVisit: serverTimestamp()
-        });
-        
-        await updateDoc(doc(db, 'publishedSites', siteId), {
-          views: increment(1),
-          lastVisited: serverTimestamp()
-        });
+        // Verificar puntos del dueño
+        const ownerPoints = ownerDoc.data()?.points || 0;
+        if (ownerPoints < 5) {
+          await updateDoc(siteRef, { active: false });
+          throw new Error("El dueño no tiene puntos suficientes");
+        }
+
+        // Transacción de puntos
+        await Promise.all([
+          updateDoc(ownerRef, {
+            points: increment(-5),
+            lastTransaction: serverTimestamp()
+          }),
+          updateDoc(userRef, {
+            points: increment(5),
+            lastVisit: serverTimestamp()
+          }),
+          updateDoc(siteRef, {
+            views: increment(1),
+            lastVisited: serverTimestamp()
+          })
+        ]);
 
         startRotationTimer(user.uid);
         
