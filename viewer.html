@@ -12,14 +12,12 @@
       margin: 0;
       padding: 0;
     }
-    
     .top-panel {
       width: 100%;
       padding: 1rem;
       background: #111;
       box-shadow: 0 2px 10px rgba(0, 255, 255, 0.1);
     }
-    
     .header {
       display: flex;
       justify-content: space-between;
@@ -27,13 +25,11 @@
       max-width: 1200px;
       margin: 0 auto;
     }
-    
     h2 {
       color: #0ff;
       margin: 0;
       font-size: 1.2rem;
     }
-    
     #countdown {
       font-size: 1.8rem;
       background: linear-gradient(135deg, #0ff, #f0f);
@@ -44,14 +40,12 @@
       min-width: 50px;
       text-align: right;
     }
-    
     .progress-separator {
       width: 100%;
       height: 12px;
       background: linear-gradient(90deg, #0ff, #f0f);
       margin: 0;
     }
-    
     .info-panel {
       max-width: 1200px;
       margin: 0.5rem auto;
@@ -60,7 +54,6 @@
       justify-content: space-between;
       font-size: 0.9rem;
     }
-    
     #site-title {
       color: #0ff;
       font-weight: bold;
@@ -69,31 +62,25 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    
     #points-earned {
       color: #0f0;
       font-weight: bold;
     }
-    
     .error {
       color: #f55;
       font-size: 0.8rem;
     }
-    
-    /* ▲▲▲ CAMBIO PRINCIPAL ▲▲▲ */
     #preview-container {
       width: 100%;
-      height: 550px; /* ¡Aquí está el ajuste! */
+      height: 550px;
       background: #000;
       border-top: 1px solid rgba(0, 255, 255, 0.2);
     }
-    
     #site-preview {
       width: 100%;
       height: 100%;
       border: none;
     }
-    
     #cancel-btn {
       position: fixed;
       bottom: 20px;
@@ -191,7 +178,9 @@
       }
 
       try {
-        const siteDoc = await getDoc(doc(db, 'publishedSites', siteId));
+        const siteRef = doc(db, 'publishedSites', siteId);
+        const siteDoc = await getDoc(siteRef);
+        
         if (!siteDoc.exists()) {
           showError("Sitio no encontrado");
           return;
@@ -203,26 +192,28 @@
         const url = siteData.url.startsWith('http') ? siteData.url : `https://${siteData.url}`;
         elements.preview.src = url;
 
+        // ▼▼▼ Zona crítica corregida ▼▼▼
         if (user && user.uid !== siteData.owner) {
           try {
-            await updateDoc(doc(db, 'users', user.uid), {
-              points: increment(POINTS_PER_VIEW),
-              lastVisit: serverTimestamp()
-            });
-            
-            await updateDoc(doc(db, 'publishedSites', siteId), {
-              views: increment(1),
-              lastVisited: serverTimestamp()
-            });
-            
-            elements.pointsInfo.textContent = `+${POINTS_PER_VIEW}pts`;
-          } catch (pointsError) {
-            console.warn("Error en puntos:", pointsError);
-            elements.pointsInfo.textContent = "";
+            await Promise.all([
+              updateDoc(siteRef, {
+                views: increment(1),
+                lastVisited: serverTimestamp()
+              }),
+              updateDoc(doc(db, 'users', user.uid), {
+                points: increment(-POINTS_PER_VIEW), // ▲ Descuento real
+                lastVisit: serverTimestamp()
+              })
+            ]);
+            elements.pointsInfo.textContent = `✓ -${POINTS_PER_VIEW} pts | +1 visita`;
+          } catch (error) {
+            console.error("Error en actualización:", error);
+            elements.pointsInfo.textContent = "⚠️ Error al registrar";
           }
         } else if (user) {
-          elements.pointsInfo.textContent = "Tu sitio";
+          elements.pointsInfo.textContent = "🔒 Eres el dueño (no se descuentan puntos)";
         }
+        // ▲▲▲ Fin de zona crítica ▲▲▲
 
         countdownSeconds = SESSION_DURATION;
         elements.countdown.textContent = countdownSeconds;
@@ -231,7 +222,7 @@
 
       } catch (error) {
         console.error("Error crítico:", error);
-        showError("Error al cargar");
+        showError("Error al cargar el sitio");
       }
     };
 
@@ -241,7 +232,8 @@
     });
 
     onAuthStateChanged(auth, (user) => {
-      loadSite(user).catch(e => console.error("Error inicial:", e));
+      if (!user) window.location.href = "login.html";
+      else loadSite(user).catch(e => console.error("Error inicial:", e));
     });
   </script>
 </body>
